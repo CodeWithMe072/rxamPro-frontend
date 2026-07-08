@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Inline theme script: runs before React mounts to avoid flash of wrong theme -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme') || 'system';
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = t === 'dark' || (t === 'system' && prefersDark);
+          document.documentElement.classList.add(isDark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/react.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>ExamPro | Practice Like the Real Exam</title>
+    <meta name="description" content="Master your examinations with high-fidelity simulations that mirror the exact environment, difficulty, and pressure of the actual day." />
+    
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-background text-on-background min-h-screen font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

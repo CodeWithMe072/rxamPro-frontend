@@ -1,0 +1,157 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { testService } from '../../services/test.service';
+import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
+import { Badge } from '../../components/Badge';
+import { Loader } from '../../components/Loader';
+import { 
+  ChevronLeft, BookOpen, Clock, Award, 
+  ShieldAlert, Sparkles, CheckCircle2 
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useTheme } from '../../context/ThemeContext';
+
+export const TestDetails = () => {
+  const { uiStrings } = useTheme();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [test, setTest] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        const data = await testService.getTestDetails(id);
+        setTest(data);
+      } catch (error) {
+        toast.error('Failed to locate test guidelines.');
+        navigate('/tests');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDetails();
+  }, [id, navigate]);
+
+  if (isLoading) {
+    return <Loader size="lg" className="min-h-[60vh]" />;
+  }
+
+  const rules = [
+    'You must enter fullscreen mode to start this examination.',
+    'Switching browser tabs or minimizing the window will trigger warnings. 3 warnings result in automatic submission.',
+    'Each correct answer yields positive marking, incorrect answers carry a 25% negative marking penalty.',
+    'Progress is autosaved locally every 30 seconds to prevent data loss in case of power or network interruptions.'
+  ];
+
+  return (
+    <div className="space-y-8 max-w-4xl mx-auto">
+      {/* Back button */}
+      <div>
+        <Link 
+          to="/tests" 
+          className="inline-flex items-center gap-1 text-sm font-semibold text-on-surface-variant hover:text-primary dark:hover:text-primary-fixed transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" /> Back to Catalog
+        </Link>
+      </div>
+
+      {/* Main Guidelines Card */}
+      <Card variant="glass" className="p-8 border border-white/30 space-y-6">
+        
+        {/* Practice Mode Warning Banner */}
+        {test.answerKeyActive && (
+          <div className="bg-secondary/10 border-l-4 border-secondary p-4 rounded-r-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-secondary">Practice Mode Active</h4>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                The answer key for this test is active. This attempt will run in **learning-mode / practice only** and will **not count** toward your total score, average score, or leaderboard rankings.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {/* Header Block */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-outline-variant/30">
+          <div>
+            <div className="flex gap-2.5 items-center mb-2">
+              <Badge variant={test.difficulty === 'Hard' ? 'error' : test.difficulty === 'Medium' ? 'tertiary' : 'secondary'}>
+                {test.difficulty}
+              </Badge>
+              <span className="text-xs font-bold text-primary dark:text-primary-fixed uppercase tracking-wider">
+                {test.subject}
+              </span>
+            </div>
+            <h1 className="font-h3 text-2xl md:text-3xl font-bold text-on-surface">{test.title}</h1>
+            <p className="text-xs font-medium text-on-surface-variant mt-1">{test.category}</p>
+          </div>
+        </div>
+
+        {/* Detailed Description */}
+        <div className="space-y-4">
+          <h3 className="font-h4 text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" /> Exam Overview
+          </h3>
+          <p className="font-body text-sm md:text-base text-on-surface-variant leading-relaxed">
+            {test.description} This simulation assesses core theoretical concepts, numerical precision, and logic. Ensure you have a stable network and a quiet environment before initiating.
+          </p>
+        </div>
+
+        {/* Parameters Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 p-6 bg-surface-container/50 dark:bg-surface-dim/40 rounded-2xl border border-outline-variant/20">
+          <div className="flex flex-col items-center text-center p-2">
+            <BookOpen className="w-6 h-6 text-primary mb-2" />
+            <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Questions</span>
+            <span className="text-lg font-bold text-on-surface mt-1">{test.questionsCount} MCQs</span>
+          </div>
+          <div className="flex flex-col items-center text-center p-2 border-y sm:border-y-0 sm:border-x border-outline-variant/30">
+            <Clock className="w-6 h-6 text-primary mb-2" />
+            <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Duration</span>
+            <span className="text-lg font-bold text-on-surface mt-1">{test.duration} Minutes</span>
+          </div>
+          <div className="flex flex-col items-center text-center p-2">
+            <Award className="w-6 h-6 text-primary mb-2" />
+            <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Total Marks</span>
+            <span className="text-lg font-bold text-on-surface mt-1">{test.totalMarks} Marks</span>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="space-y-4 pt-4 border-t border-outline-variant/30">
+          <h3 className="font-h4 text-base md:text-lg font-bold text-on-surface flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-error" /> {uiStrings['test_guidelines_title'] || 'Proctoring & Integrity Rules'}
+          </h3>
+          <ul className="space-y-3.5">
+            {rules.map((rule, idx) => (
+              <li key={idx} className="flex items-start gap-3 text-xs md:text-sm text-on-surface-variant leading-relaxed">
+                <CheckCircle2 className="w-4 h-4 text-secondary flex-shrink-0 mt-0.5" />
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Actions */}
+        <div className="pt-6 flex justify-end gap-4 border-t border-outline-variant/30">
+          <Button 
+            variant="outline"
+            onClick={() => navigate('/tests')}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="gradient"
+            onClick={() => navigate(`/exam/${test.id}`)}
+            className="px-10"
+          >
+            Commence Examination
+          </Button>
+        </div>
+
+      </Card>
+    </div>
+  );
+};
+export default TestDetails;
