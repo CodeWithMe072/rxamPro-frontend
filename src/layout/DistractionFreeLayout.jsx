@@ -12,38 +12,91 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const isRequestingCameraRef = useRef(false);
+  const startTimeRef = useRef(Date.now());
+  const lastViolationTimeRef = useRef(0);
+  const mobileHiddenTimeoutRef = useRef(null);
 
   // Check fullscreen state
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isCurrentlyFull = document.fullscreenElement === containerRef.current;
-      setIsFullscreen(isCurrentlyFull);
-      if (!isCurrentlyFull && violationsCount > 0) {
-        triggerViolation('Exited Fullscreen Mode');
-      }
+      setIsFullscreen(prev => {
+        if (prev && !isCurrentlyFull) {
+          triggerViolation('Exited Fullscreen Mode');
+        }
+        return isCurrentlyFull;
+      });
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [violationsCount]);
+  }, []);
 
   // Tab switching / Window blur detection
   useEffect(() => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        triggerViolation('Tab Switch Detected');
+        if (isMobile) {
+          if (mobileHiddenTimeoutRef.current) {
+            clearTimeout(mobileHiddenTimeoutRef.current);
+          }
+          mobileHiddenTimeoutRef.current = setTimeout(() => {
+            triggerViolation('Tab Switch Detected');
+          }, 12000);
+        } else {
+          triggerViolation('Tab Switch Detected');
+        }
+      } else {
+        if (isMobile && mobileHiddenTimeoutRef.current) {
+          clearTimeout(mobileHiddenTimeoutRef.current);
+          mobileHiddenTimeoutRef.current = null;
+          console.log('Mobile tab switch / screen off violation bypassed within 12 seconds grace period.');
+        }
       }
     };
 
-    const handleWindowBlur = () => {
-      triggerViolation('Window Focus Lost');
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleWindowBlur);
+      if (mobileHiddenTimeoutRef.current) {
+        clearTimeout(mobileHiddenTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Screen Wake Lock API to prevent mobile screen from auto-off/sleeping during the exam
+  useEffect(() => {
+    let wakeLock = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Screen Wake Lock successfully acquired.');
+        }
+      } catch (err) {
+        console.warn(`Screen Wake Lock acquisition failed: ${err.name}, ${err.message}`);
+      }
+    };
+
+    requestWakeLock();
+
+    // Re-acquire wake lock if tab becomes visible again
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLock) {
+        wakeLock.release().catch(err => console.error('Error releasing wake lock:', err));
+      }
     };
   }, []);
 
@@ -51,6 +104,7 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   useEffect(() => {
     if (!proctorActive) return;
     const startCamera = async () => {
+      isRequestingCameraRef.current = true;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
         streamRef.current = stream;
@@ -59,6 +113,11 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
         }
       } catch (err) {
         console.warn('Camera access denied or unavailable for proctoring.', err);
+      } finally {
+        // Set a small delay before clearing the flag to ensure the browser has fully refocused on the main window after closing the prompt
+        setTimeout(() => {
+          isRequestingCameraRef.current = false;
+        }, 300);
       }
     };
     startCamera();
@@ -98,6 +157,20 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   }, [takeSnapshot, proctorActive]);
 
   const triggerViolation = (type) => {
+    const now = Date.now();
+    // Debounce/deduplicate consecutive violations within 1 second (e.g. back-to-back visibilitychange and blur events)
+    if (now - lastViolationTimeRef.current < 1000) {
+      console.log(`Deduplicated focus/tab switch violation: ${type}`);
+      return;
+    }
+    lastViolationTimeRef.current = now;
+
+    // Exiting fullscreen is always a violation and not bypassed.
+    // Tab Switch and Window Focus blurs are bypassed during the first 3 minutes (180,000 ms) of setup.
+    if (type !== 'Exited Fullscreen Mode' && (now - startTimeRef.current < 180000)) {
+      console.log(`Bypassed focus loss/tab change violation: ${type} (Setup Period)`);
+      return;
+    }
     setViolationsCount(prev => {
       const next = prev + 1;
       if (onViolation) {

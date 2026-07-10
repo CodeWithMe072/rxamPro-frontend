@@ -327,50 +327,79 @@ export const ResultScreen = () => {
 
             <div className="space-y-4">
               {filteredAnswers.length > 0 ? (
-                filteredAnswers.map((item, idx) => (
-                  <Card 
-                    key={idx} 
-                    variant="glass" 
-                    className={`border-l-4 p-6 ${
-                      item.isCorrect ? 'border-l-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'border-l-outline-variant' : 'border-l-error'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs font-bold text-primary">Question {item.number}</span>
-                      <Badge variant={item.isCorrect ? 'secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'outline' : 'error'}>
-                        {item.isCorrect ? 'Correct' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'Unanswered' : 'Incorrect'}
-                      </Badge>
-                    </div>
-                    <p className="font-body text-sm text-on-surface mt-3 leading-relaxed">
-                      {item.text}
-                    </p>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-outline-variant/20 text-xs">
-                      <div className={`p-3 rounded-lg bg-surface-container/50 ${!item.correct ? 'sm:col-span-2' : ''}`}>
-                        <span className="text-on-surface-variant block mb-1 font-bold">Your Response:</span>
-                        <span className={`font-semibold flex items-center gap-1.5 ${item.isCorrect ? 'text-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'text-on-surface-variant' : 'text-error'}`}>
-                          {item.isCorrect ? (
-                            <CheckCircle className="w-4 h-4" />
-                          ) : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? (
-                            <span className="text-xs text-on-surface-variant/60">Not Attempted</span>
-                          ) : (
-                            <XCircle className="w-4 h-4" />
-                          )}
-                          Option {item.selected}
-                        </span>
-                      </div>
-                      {item.correct && (
-                        <div className="p-3 rounded-lg bg-surface-container/50">
-                          <span className="text-on-surface-variant block mb-1 font-bold">Correct Answer:</span>
-                          <span className="font-semibold text-secondary flex items-center gap-1.5">
-                            <CheckCircle className="w-4 h-4" />
-                            Option {item.correct}
+                filteredAnswers.map((item, idx) => {
+                  const maxMarks = item.marks !== undefined ? item.marks : 1;
+                  const negMarks = item.negativeMarks !== undefined ? item.negativeMarks : 0.25;
+                  const gainedMarks = item.marksObtained !== undefined ? item.marksObtained : (item.isCorrect ? maxMarks * (demoResults.decayMultiplier || 1.0) : (item.selected !== 'None' && item.selected !== 'skipped' && item.selected !== '' ? -negMarks : 0));
+                  
+                  return (
+                    <Card 
+                      key={idx} 
+                      variant="glass" 
+                      className={`border-l-4 p-6 ${
+                        item.isCorrect ? 'border-l-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'border-l-outline-variant' : 'border-l-error'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pb-3 border-b border-outline-variant/10">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-primary">Question {item.number}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-secondary-container/30 dark:bg-secondary-container/10 text-secondary font-bold">
+                            Correct: +{((maxMarks) * (demoResults.decayMultiplier || 1.0)).toFixed(2)} | Incorrect: -{negMarks.toFixed(2)}
                           </span>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-extrabold px-3 py-1 rounded-xl flex items-center gap-1 shadow-sm ${
+                            item.isCorrect 
+                              ? 'bg-secondary/15 text-secondary border border-secondary/20' 
+                              : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') 
+                                ? 'bg-outline-variant/10 text-on-surface-variant' 
+                                : 'bg-error/15 text-error border border-error/20'
+                          }`}>
+                            Gained: {gainedMarks > 0 ? `+${gainedMarks.toFixed(2)}` : gainedMarks < 0 ? `${gainedMarks.toFixed(2)}` : '0.00'}
+                          </span>
+                          <Badge variant={item.isCorrect ? 'secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'outline' : 'error'}>
+                            {item.isCorrect ? 'Correct' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'Unanswered' : 'Incorrect'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="font-body text-sm text-on-surface mt-3 leading-relaxed">
+                        {item.text}
+                      </p>
+
+                      {item.isCorrect && (demoResults.decayMultiplier || 1.0) < 1.0 && (
+                        <p className="text-[11px] text-error font-medium mt-2 flex items-center gap-1.5 bg-error/5 p-2 rounded-lg border border-error/10">
+                          <span>⚠️</span>
+                          <span>Reduced from full marks (+{maxMarks.toFixed(2)}) due to {demoResults.attemptNumber > 1 ? `repeat attempt #${demoResults.attemptNumber}` : 'late submission (>4 days)'} penalty (applied {Math.round((demoResults.decayMultiplier || 1.0) * 100)}% multiplier).</span>
+                        </p>
                       )}
-                    </div>
-                  </Card>
-                ))
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-outline-variant/20 text-xs">
+                        <div className={`p-3 rounded-lg bg-surface-container/50 ${!item.correct ? 'sm:col-span-2' : ''}`}>
+                          <span className="text-on-surface-variant block mb-1 font-bold">Your Response:</span>
+                          <span className={`font-semibold flex items-center gap-1.5 ${item.isCorrect ? 'text-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'text-on-surface-variant' : 'text-error'}`}>
+                            {item.isCorrect ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? (
+                              <span className="text-xs text-on-surface-variant/60">Not Attempted</span>
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
+                            Option {item.selected}
+                          </span>
+                        </div>
+                        {item.correct && (
+                          <div className="p-3 rounded-lg bg-surface-container/50">
+                            <span className="text-on-surface-variant block mb-1 font-bold">Correct Answer:</span>
+                            <span className="font-semibold text-secondary flex items-center gap-1.5">
+                              <CheckCircle className="w-4 h-4" />
+                              Option {item.correct}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })
               ) : (
                 <div className="py-12 text-center text-on-surface-variant bg-surface-container/30 border border-dashed border-outline-variant/30 rounded-2xl font-bold text-sm">
                   No questions found matching the selected filter.

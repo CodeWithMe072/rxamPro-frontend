@@ -32,12 +32,15 @@ export const AnalyticsPanel = () => {
   const { overall, difficultyStats, gradeDistribution } = analytics;
 
   // Chart configuration
+  const subjectLabels = analytics.subjectPerformance?.map(sp => sp.subject) || [];
+  const subjectScores = analytics.subjectPerformance?.map(sp => sp.avgPct) || [];
+
   const performanceChartData = {
-    labels: ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5', 'Unit 6'],
+    labels: subjectLabels,
     datasets: [
       {
         label: 'Average Score (%)',
-        data: [72, 78, 64, 85, 74, 82],
+        data: subjectScores,
         backgroundColor: '#006c49',
         borderRadius: 6
       }
@@ -79,7 +82,7 @@ export const AnalyticsPanel = () => {
           </div>
           <div>
             <p className="text-on-surface-variant/80 text-xs uppercase font-bold tracking-wider">Total Modules</p>
-            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">46 Exams</h3>
+            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">{overall.totalTests || 0} Exams</h3>
           </div>
         </Card>
         <Card variant="solid" className="p-6 flex items-start gap-4">
@@ -88,7 +91,7 @@ export const AnalyticsPanel = () => {
           </div>
           <div>
             <p className="text-on-surface-variant/80 text-xs uppercase font-bold tracking-wider">Average Accuracy</p>
-            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">82.4%</h3>
+            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">{(overall.avgAccuracy || 0).toFixed(1)}%</h3>
           </div>
         </Card>
         <Card variant="solid" className="p-6 flex items-start gap-4">
@@ -97,7 +100,7 @@ export const AnalyticsPanel = () => {
           </div>
           <div>
             <p className="text-on-surface-variant/80 text-xs uppercase font-bold tracking-wider">Participation Rate</p>
-            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">94%</h3>
+            <h3 className="text-xl font-bold font-mono mt-1 text-on-surface">{overall.participationRate || 0}%</h3>
           </div>
         </Card>
       </section>
@@ -105,10 +108,10 @@ export const AnalyticsPanel = () => {
       {/* Analytics Charts */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Performance by Unit */}
+        {/* Performance by Subject */}
         <Card variant="solid" className="p-6">
           <div className="mb-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Unit-Level Performance Analysis</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Subject-Level Performance Analysis</h3>
           </div>
           <div className="h-64">
             <BarChart data={performanceChartData} />

@@ -26,6 +26,25 @@ export const SidebarLayout = ({ children }) => {
   useEffect(() => {
     if (!user) return;
     
+    // Request camera and microphone permissions early when the user lands on the website
+    const requestPermissionsEarly = async () => {
+      if (sessionStorage.getItem('media_permissions_requested')) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        sessionStorage.setItem('media_permissions_requested', 'true');
+      } catch (err) {
+        console.warn('Early media permissions check failed/denied:', err);
+      }
+    };
+    
+    const timer = setTimeout(requestPermissionsEarly, 1000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    
     // Fetch initial notifications
     const fetchNotifications = async () => {
       try {

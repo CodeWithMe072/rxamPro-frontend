@@ -7,10 +7,11 @@ import { Badge } from '../../components/Badge';
 import { Loader } from '../../components/Loader';
 import { 
   ChevronLeft, BookOpen, Clock, Award, 
-  ShieldAlert, Sparkles, CheckCircle2 
+  ShieldAlert, Sparkles, CheckCircle2, Trophy 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
+import { Modal } from '../../components/Modal';
 
 export const TestDetails = () => {
   const { uiStrings } = useTheme();
@@ -18,6 +19,7 @@ export const TestDetails = () => {
   const navigate = useNavigate();
   const [test, setTest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -38,10 +40,48 @@ export const TestDetails = () => {
     return <Loader size="lg" className="min-h-[60vh]" />;
   }
 
+  const getDecayInfo = (attemptNumber, daysSinceRelease) => {
+    let decayCorrectMarks = 5;
+    if (attemptNumber === 1) {
+      decayCorrectMarks = daysSinceRelease <= 4 ? 5 : 4;
+    } else if (attemptNumber === 2 || attemptNumber === 3) {
+      decayCorrectMarks = 4;
+    } else if (attemptNumber === 4 || attemptNumber === 5) {
+      decayCorrectMarks = 3;
+    } else {
+      decayCorrectMarks = 2;
+    }
+    const decayMultiplier = decayCorrectMarks / 5;
+    const percentText = `${decayMultiplier * 100}%`;
+    return { decayMultiplier, percentText };
+  };
+
+  const getPenaltyReasonText = (attemptNumber, daysSinceRelease) => {
+    if (attemptNumber === 1) {
+      if (daysSinceRelease > 4) {
+        return `Late Submission Penalty — First attempt started ${daysSinceRelease} days after test release (80% marks limit).`;
+      }
+      return '';
+    }
+    let multiplierText = '';
+    if (attemptNumber === 2 || attemptNumber === 3) multiplierText = '80%';
+    else if (attemptNumber === 4 || attemptNumber === 5) multiplierText = '60%';
+    else multiplierText = '40%';
+    return `Repeat Attempt Penalty — Attempt #${attemptNumber} (reduced to ${multiplierText} of question marks).`;
+  };
+
+  const { decayMultiplier, percentText } = getDecayInfo(test?.attemptNumber || 1, test?.daysSinceRelease || 0);
+
+  const avgCorrectMarks = test ? (test.totalMarks / test.questionsCount) : 0;
+  const avgObtainableCorrectMarks = avgCorrectMarks * decayMultiplier;
+  const avgNegativeMarks = test ? (test.negativeMarking !== undefined && test.negativeMarking !== null ? Number(test.negativeMarking) : 0.25) : 0.25;
+
   const rules = [
     'You must enter fullscreen mode to start this examination.',
     'Switching browser tabs or minimizing the window will trigger warnings. 3 warnings result in automatic submission.',
-    'Each correct answer yields positive marking, incorrect answers carry a 25% negative marking penalty.',
+    avgNegativeMarks > 0
+      ? `Each correct answer yields +${avgObtainableCorrectMarks.toFixed(2)} marks (with attempt decay applied), while incorrect answers deduct -${avgNegativeMarks.toFixed(2)} marks.`
+      : `Each correct answer yields +${avgObtainableCorrectMarks.toFixed(2)} marks (with attempt decay applied), while incorrect answers carry no penalty (0 negative marks).`,
     'Progress is autosaved locally every 30 seconds to prevent data loss in case of power or network interruptions.'
   ];
 
@@ -100,22 +140,44 @@ export const TestDetails = () => {
         </div>
 
         {/* Parameters Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 p-6 bg-surface-container/50 dark:bg-surface-dim/40 rounded-2xl border border-outline-variant/20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 p-6 bg-surface-container/50 dark:bg-surface-dim/40 rounded-2xl border border-outline-variant/20">
           <div className="flex flex-col items-center text-center p-2">
             <BookOpen className="w-6 h-6 text-primary mb-2" />
             <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Questions</span>
             <span className="text-lg font-bold text-on-surface mt-1">{test.questionsCount} MCQs</span>
           </div>
-          <div className="flex flex-col items-center text-center p-2 border-y sm:border-y-0 sm:border-x border-outline-variant/30">
+          <div className="flex flex-col items-center text-center p-2 border-y sm:border-y-0 sm:border-x lg:border-x-0 border-outline-variant/30">
             <Clock className="w-6 h-6 text-primary mb-2" />
             <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Duration</span>
             <span className="text-lg font-bold text-on-surface mt-1">{test.duration} Minutes</span>
           </div>
-          <div className="flex flex-col items-center text-center p-2">
+          <div className="flex flex-col items-center text-center p-2 border-b sm:border-b-0 lg:border-x border-outline-variant/30">
             <Award className="w-6 h-6 text-primary mb-2" />
             <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Total Marks</span>
             <span className="text-lg font-bold text-on-surface mt-1">{test.totalMarks} Marks</span>
           </div>
+          <div className="flex flex-col items-center text-center p-2">
+            <Trophy className="w-6 h-6 text-primary mb-2" />
+            <span className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Attempt Max Marks</span>
+            <span className="text-lg font-bold text-on-surface mt-1">{(test.totalMarks * decayMultiplier).toFixed(0)} Marks ({percentText})</span>
+          </div>
+        </div>
+
+        {/* Dynamic Marking Scheme Indicator */}
+        <div className="space-y-2 p-4 bg-secondary/5 dark:bg-secondary/10 rounded-2xl border border-outline-variant/20">
+          <div className="text-center text-xs text-on-surface-variant font-semibold">
+            Marking Scheme for this attempt: <span className="text-secondary font-bold">+{avgObtainableCorrectMarks.toFixed(2)} Marks</span> per correct answer | {avgNegativeMarks > 0 ? (
+              <>incorrect answers deduct <span className="text-error font-bold">-{avgNegativeMarks.toFixed(2)} Marks</span></>
+            ) : (
+              <span className="text-secondary font-bold">No Negative Marking</span>
+            )}
+          </div>
+          {decayMultiplier < 1.0 && (
+            <div className="text-center text-[11px] text-amber-500 font-bold flex items-center justify-center gap-1.5 pt-1.5 border-t border-outline-variant/10">
+              <span>⚠️</span>
+              <span>{getPenaltyReasonText(test.attemptNumber || 1, test.daysSinceRelease || 0)}</span>
+            </div>
+          )}
         </div>
 
         {/* Instructions */}
@@ -143,7 +205,7 @@ export const TestDetails = () => {
           </Button>
           <Button 
             variant="gradient"
-            onClick={() => navigate(`/exam/${test.id}`)}
+            onClick={() => setShowConfirmModal(true)}
             className="px-10"
           >
             Commence Examination
@@ -151,6 +213,87 @@ export const TestDetails = () => {
         </div>
 
       </Card>
+
+      {/* Pre-Exam Attempt Notification Confirmation Modal */}
+      <Modal 
+        isOpen={showConfirmModal} 
+        onClose={() => setShowConfirmModal(false)}
+        title="Confirm Examination Commencement"
+        size="md"
+        showCloseButton={true}
+        closeOnOverlayClick={false}
+      >
+        <div className="space-y-6">
+          <div className="bg-amber-500/10 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide">
+                ⚠️ Attempt {test.attemptNumber || 1} of this test
+              </h4>
+              <div className="text-xs text-on-surface-variant mt-2 space-y-2 leading-relaxed">
+                {test.attemptNumber === 1 && test.daysSinceRelease <= 4 && (
+                  <p>
+                    <strong className="text-secondary font-bold">✅ Full Marks</strong> — This is your first attempt within the valid window. Correct answers will be scored at 100% of question marks.
+                  </p>
+                )}
+                {test.attemptNumber === 1 && test.daysSinceRelease > 4 && (
+                  <p>
+                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — It's been over 4 days since this test was released. Correct answers will be scored at 80% of question marks.
+                  </p>
+                )}
+                {(test.attemptNumber === 2 || test.attemptNumber === 3) && (
+                  <p>
+                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — This is a repeat attempt (#{test.attemptNumber}). Correct answers will be scored at 80% of question marks.
+                  </p>
+                )}
+                {(test.attemptNumber === 4 || test.attemptNumber === 5) && (
+                  <p>
+                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — This is a repeat attempt (#{test.attemptNumber}). Correct answers will be scored at 60% of question marks.
+                  </p>
+                )}
+                {test.attemptNumber >= 6 && (
+                  <p>
+                    <strong className="text-error font-bold">⚠️ Minimum Marks</strong> — You've attempted this test {test.attemptNumber} times. Correct answers will be scored at 40% of question marks.
+                  </p>
+                )}
+                {avgNegativeMarks > 0 ? (
+                  <p className="border-t border-outline-variant/20 pt-2 font-medium text-error">
+                    Note: Negative marking for incorrect answers stays at full value (-{avgNegativeMarks.toFixed(2)} marks) regardless of attempt number or decay.
+                  </p>
+                ) : (
+                  <p className="border-t border-outline-variant/20 pt-2 font-medium text-secondary">
+                    Note: There is no negative marking for incorrect answers in this test.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-on-surface-variant font-medium text-center">
+            By commencing, you agree to the proctoring requirements and understand your attempt score will be calculated as stated above.
+          </p>
+
+          <div className="flex gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowConfirmModal(false)}
+              fullWidth
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="gradient" 
+              onClick={() => {
+                setShowConfirmModal(false);
+                navigate(`/exam/${test.id}`);
+              }}
+              fullWidth
+            >
+              I understand, Start Test
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

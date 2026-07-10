@@ -21,6 +21,7 @@ const TestSchema = z.object({
   questionsCount: z.preprocess((val) => Number(val), z.number().min(1, 'At least 1 question is required')),
   duration: z.preprocess((val) => Number(val), z.number().min(5, 'Minimum duration is 5 minutes')),
   totalMarks: z.preprocess((val) => Number(val), z.number().min(10, 'Minimum total marks is 10')),
+  negativeMarking: z.preprocess((val) => Number(val), z.number().min(0, 'Negative marking must be at least 0')),
   difficulty: z.enum(['Easy', 'Medium', 'Hard']),
   color: z.enum(['primary', 'secondary', 'tertiary']),
   batch: z.string().min(1, 'Target batch assignment is required'),
@@ -39,7 +40,7 @@ export const ManageTests = () => {
   const { register, handleSubmit, formState: { errors }, reset, setValue, control } = useForm({
     resolver: zodResolver(TestSchema),
     defaultValues: {
-      title: '', subject: '', category: '', questionsCount: 50, duration: 90, totalMarks: 100, difficulty: 'Medium', color: 'primary', batch: '', webcamProctoring: false
+      title: '', subject: '', category: '', questionsCount: 50, duration: 90, totalMarks: 100, negativeMarking: 0.25, difficulty: 'Medium', color: 'primary', batch: '', webcamProctoring: false
     }
   });
 
@@ -66,7 +67,7 @@ export const ManageTests = () => {
   const openCreateModal = () => {
     setEditingTest(null);
     reset({
-      title: '', subject: '', category: '', questionsCount: 50, duration: 90, totalMarks: 100, difficulty: 'Medium', color: 'primary', batch: '', webcamProctoring: false
+      title: '', subject: '', category: '', questionsCount: 50, duration: 90, totalMarks: 100, negativeMarking: 0.25, difficulty: 'Medium', color: 'primary', batch: '', webcamProctoring: false
     });
     setIsModalOpen(true);
   };
@@ -80,6 +81,7 @@ export const ManageTests = () => {
       questionsCount: test.questionsCount,
       duration: test.duration,
       totalMarks: test.totalMarks,
+      negativeMarking: test.negativeMarking !== undefined && test.negativeMarking !== null ? test.negativeMarking : 0.25,
       difficulty: test.difficulty,
       color: test.color || 'primary',
       batch: test.batch?._id || test.batch || '',
@@ -235,7 +237,7 @@ export const ManageTests = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <Input 
               label="Total Questions"
               type="number"
@@ -253,6 +255,13 @@ export const ManageTests = () => {
               type="number"
               error={errors.totalMarks?.message}
               {...register('totalMarks')}
+            />
+            <Input 
+              label="Negative Marking"
+              type="number"
+              step="0.01"
+              error={errors.negativeMarking?.message}
+              {...register('negativeMarking')}
             />
           </div>
 
