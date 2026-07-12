@@ -16,6 +16,7 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   const startTimeRef = useRef(Date.now());
   const lastViolationTimeRef = useRef(0);
   const mobileHiddenTimeoutRef = useRef(null);
+  const pendingSnapshotReasonRef = useRef(null);
 
   // Check fullscreen state
   useEffect(() => {
@@ -53,6 +54,15 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
           clearTimeout(mobileHiddenTimeoutRef.current);
           mobileHiddenTimeoutRef.current = null;
           console.log('Mobile tab switch / screen off violation bypassed within 12 seconds grace period.');
+        }
+
+        // Trigger any pending snapshot now that the tab is active and visible
+        if (pendingSnapshotReasonRef.current) {
+          const reason = pendingSnapshotReasonRef.current;
+          pendingSnapshotReasonRef.current = null;
+          setTimeout(() => {
+            takeSnapshot(reason);
+          }, 300);
         }
       }
     };
@@ -178,7 +188,14 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
       }
       return next;
     });
-    takeSnapshot(`Security Violation: ${type}`);
+
+    const reason = `Security Violation: ${type}`;
+    if (document.hidden) {
+      // Store to take the snapshot when they return to the tab
+      pendingSnapshotReasonRef.current = reason;
+    } else {
+      takeSnapshot(reason);
+    }
     setShowWarningModal(true);
   };
 

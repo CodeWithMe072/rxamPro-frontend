@@ -67,6 +67,11 @@ export const testService = {
     return response.data.data;
   },
 
+  async getAttempts() {
+    const response = await api.get('/admin/attempts');
+    return response.data.data;
+  },
+
   async getUsers() {
     const response = await api.get('/admin/users');
     return response.data.data;

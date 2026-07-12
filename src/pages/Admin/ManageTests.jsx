@@ -11,7 +11,7 @@ import { Loader } from '../../components/Loader';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Dropdown } from '../../components/Dropdown';
-import { Trash2, Edit2, Plus, FileText, AlertCircle, School } from 'lucide-react';
+import { Trash2, Edit2, Plus, FileText, AlertCircle, School, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TestSchema = z.object({
@@ -36,6 +36,14 @@ export const ManageTests = () => {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
+
+  const [isAttemptsModalOpen, setIsAttemptsModalOpen] = useState(false);
+  const [selectedTestForAttempts, setSelectedTestForAttempts] = useState(null);
+  const [filteredAttempts, setFilteredAttempts] = useState([]);
+  const [isAttemptsLoading, setIsAttemptsLoading] = useState(false);
+
+  const [showSnapshotsModal, setShowSnapshotsModal] = useState(false);
+  const [selectedAttemptForSnapshots, setSelectedAttemptForSnapshots] = useState(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, control } = useForm({
     resolver: zodResolver(TestSchema),
@@ -88,6 +96,24 @@ export const ManageTests = () => {
       webcamProctoring: !!test.webcamProctoring
     });
     setIsModalOpen(true);
+  };
+
+  const openAttemptsModal = async (test) => {
+    setSelectedTestForAttempts(test);
+    setIsAttemptsModalOpen(true);
+    setIsAttemptsLoading(true);
+    try {
+      const data = await testService.getAttempts();
+      const filtered = data.filter(att => {
+        const attemptTestId = att.testId?._id || att.testId?.id || att.testId;
+        return attemptTestId === test.id;
+      });
+      setFilteredAttempts(filtered);
+    } catch (e) {
+      toast.error('Failed to load student attempts.');
+    } finally {
+      setIsAttemptsLoading(false);
+    }
   };
 
   const onSubmit = async (data) => {
@@ -184,7 +210,16 @@ export const ManageTests = () => {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-outline-variant/20">
+            <div className="mt-4 pt-4 border-t border-outline-variant/20 flex flex-col gap-2">
+              <Button 
+                onClick={() => openAttemptsModal(test)}
+                variant="gradient" 
+                size="sm" 
+                fullWidth
+                className="flex items-center justify-center gap-1.5 h-10 cursor-pointer text-xs font-semibold"
+              >
+                <Eye className="w-4 h-4" /> View Student Attempts
+              </Button>
               <Button 
                 onClick={() => handleExportTest(test.id, test.title)}
                 variant="outline" 
@@ -340,6 +375,132 @@ export const ManageTests = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Student Attempts List Modal */}
+      <Modal
+        isOpen={isAttemptsModalOpen}
+        onClose={() => setIsAttemptsModalOpen(false)}
+        title={`Student Attempts: ${selectedTestForAttempts?.title || ''}`}
+        size="4xl"
+      >
+        {isAttemptsLoading ? (
+          <Loader size="md" className="min-h-[200px]" />
+        ) : filteredAttempts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-center text-on-surface">
+            <AlertCircle className="w-12 h-12 text-on-surface-variant/40 mb-3 animate-pulse" />
+            <p className="text-sm font-semibold">No student attempts recorded for this examination yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs md:text-sm text-on-surface">
+              <thead>
+                <tr className="bg-surface-container-high border-b border-outline-variant/20 text-on-surface-variant font-bold uppercase tracking-wider">
+                  <th className="py-3 px-4">Student</th>
+                  <th className="py-3 px-2 text-center">Attempt</th>
+                  <th className="py-3 px-2 text-center">Score</th>
+                  <th className="py-3 px-2 text-center">Accuracy</th>
+                  <th className="py-3 px-2 text-center">Webcam Snaps</th>
+                  <th className="py-3 px-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/10 font-medium text-on-surface">
+                {filteredAttempts.map((att) => {
+                  const snapCount = att.snapshots?.length || 0;
+                  return (
+                    <tr key={att._id} className="hover:bg-surface-variant/5">
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-on-surface">{att.userId?.name || 'Student'}</div>
+                        <div className="text-[10px] text-on-surface-variant">{att.userId?.email || ''}</div>
+                      </td>
+                      <td className="py-3.5 px-2 text-center text-on-surface font-semibold">
+                        #{att.attemptNumber || 1}
+                      </td>
+                      <td className="py-3.5 px-2 text-center font-bold text-primary">
+                        {att.score} / {selectedTestForAttempts?.totalMarks || 100}
+                      </td>
+                      <td className="py-3.5 px-2 text-center font-bold text-secondary">
+                        {att.accuracy}%
+                      </td>
+                      <td className="py-3.5 px-2 text-center">
+                        {snapCount > 0 ? (
+                          <Badge variant="tertiary" className="font-bold font-mono">{snapCount} captured</Badge>
+                        ) : (
+                          <span className="text-[10px] text-on-surface-variant/40">None</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {snapCount > 0 && (
+                            <Button 
+                              onClick={() => {
+                                setSelectedAttemptForSnapshots(att);
+                                setShowSnapshotsModal(true);
+                              }}
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 px-3 text-[10px] cursor-pointer"
+                            >
+                              Review Snaps
+                            </Button>
+                          )}
+                          <Button 
+                            onClick={() => navigate(`/results/summary?attemptId=${att._id}`)}
+                            variant="gradient" 
+                            size="sm" 
+                            className="h-8 px-3 text-[10px] cursor-pointer"
+                          >
+                            View Result
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+
+      {/* Proctoring Webcam Snapshots Modal */}
+      {showSnapshotsModal && selectedAttemptForSnapshots && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-6" style={{ zIndex: 9999 }}>
+          <Card variant="glass" className="w-full max-w-2xl p-6 border-white/20 max-h-[85vh] flex flex-col justify-between">
+            <div className="overflow-y-auto pr-1">
+              <h3 className="font-h3 text-xl font-bold text-on-surface mb-1">
+                Proctoring Webcam Snapshots
+              </h3>
+              <p className="text-xs text-on-surface-variant mb-6 font-medium">
+                Active monitoring capture log for exam attempt: <strong>{selectedAttemptForSnapshots.testId?.title}</strong>
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {selectedAttemptForSnapshots.snapshots.map((snap, idx) => (
+                  <div key={idx} className="bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20">
+                    <img 
+                      src={snap.image} 
+                      alt={`Proctoring Snapshot ${idx + 1}`} 
+                      className="w-full h-40 object-cover" 
+                    />
+                    <div className="p-3 text-[10px] font-semibold text-on-surface-variant">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-error uppercase tracking-wider">{snap.reason}</span>
+                        <span className="font-mono">{new Date(snap.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-outline-variant/20 mt-6">
+              <Button onClick={() => setShowSnapshotsModal(false)} variant="gradient" className="px-8 animate-button">
+                Done
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
     </div>
   );
