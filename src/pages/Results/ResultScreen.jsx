@@ -133,14 +133,18 @@ export const ResultScreen = () => {
         number: 42,
         text: "Considering the schematic below representing the probability density of a particle in a one-dimensional infinite potential well of width 'L', identify the quantum state (n) and the corresponding energy level associated with this specific wavefunction distribution.",
         correct: "C",
+        correctText: "Quantum state n=3, Energy E_3 = 9h² / (8mL²)",
         selected: "C",
+        selectedText: "Quantum state n=3, Energy E_3 = 9h² / (8mL²)",
         isCorrect: true
       },
       {
         number: 1,
         text: "Evaluate the characteristic eigenvalues of the Hamiltonian Operators operator under boundary conditions defined for state index #1. Assume a perturbation parameter λ is infinitesimally small.",
         correct: "B",
+        correctText: "Eigenvalues of Hamiltonian state #1 = 4.2eV",
         selected: "A",
+        selectedText: "Eigenvalues of Hamiltonian state #1 = 2.1eV",
         isCorrect: false
       },
       {
@@ -376,24 +380,38 @@ export const ResultScreen = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-outline-variant/20 text-xs">
                         <div className={`p-3 rounded-lg bg-surface-container/50 ${!item.correct ? 'sm:col-span-2' : ''}`}>
                           <span className="text-on-surface-variant block mb-1 font-bold">Your Response:</span>
-                          <span className={`font-semibold flex items-center gap-1.5 ${item.isCorrect ? 'text-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'text-on-surface-variant' : 'text-error'}`}>
-                            {item.isCorrect ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? (
-                              <span className="text-xs text-on-surface-variant/60">Not Attempted</span>
-                            ) : (
-                              <XCircle className="w-4 h-4" />
+                          <div className={`font-semibold flex flex-col gap-1.5 ${item.isCorrect ? 'text-secondary' : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? 'text-on-surface-variant' : 'text-error'}`}>
+                            <div className="flex items-center gap-1.5">
+                              {item.isCorrect ? (
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                              ) : (item.selected === 'None' || item.selected === 'skipped' || item.selected === '') ? (
+                                <span className="text-xs text-on-surface-variant/60">Not Attempted</span>
+                              ) : (
+                                <XCircle className="w-4 h-4 flex-shrink-0" />
+                              )}
+                              <span>Option {item.selected}</span>
+                            </div>
+                            {item.selectedText && (
+                              <p className="text-[11px] font-normal text-on-surface-variant/90 border-l-2 border-outline-variant/35 pl-2 mt-1 leading-normal">
+                                {item.selectedText}
+                              </p>
                             )}
-                            Option {item.selected}
-                          </span>
+                          </div>
                         </div>
                         {item.correct && (
                           <div className="p-3 rounded-lg bg-surface-container/50">
                             <span className="text-on-surface-variant block mb-1 font-bold">Correct Answer:</span>
-                            <span className="font-semibold text-secondary flex items-center gap-1.5">
-                              <CheckCircle className="w-4 h-4" />
-                              Option {item.correct}
-                            </span>
+                            <div className="font-semibold text-secondary flex flex-col gap-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                <span>Option {item.correct}</span>
+                              </div>
+                              {item.correctText && (
+                                <p className="text-[11px] font-normal text-on-surface-variant/90 border-l-2 border-outline-variant/35 pl-2 mt-1 leading-normal">
+                                  {item.correctText}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

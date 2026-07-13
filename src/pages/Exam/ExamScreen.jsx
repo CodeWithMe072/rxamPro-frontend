@@ -12,18 +12,20 @@ import { School, ChevronLeft, ChevronRight, Trash, Flag, CheckCircle, HelpCircle
 import toast from 'react-hot-toast';
 
 export const ExamScreen = () => {
-  const { id: testId } = useParams();
+  const { id: testId, attemptId } = useParams();
   const navigate = useNavigate();
 
   const [session, setSession] = useState(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState({});
   const [qStates, setQStates] = useState({});
+  const [warningCount, setWarningCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [showNavigatorModal, setShowNavigatorModal] = useState(false);
 
   const cacheKey = `exam_cache_${testId}`;
 
@@ -31,28 +33,52 @@ export const ExamScreen = () => {
   useEffect(() => {
     const initExam = async () => {
       try {
+        if (attemptId) {
+          const details = await examService.getAttemptDetails(attemptId);
+          if (details.status !== 'ongoing') {
+            toast.error('This attempt session has already been completed.');
+            navigate(`/results/summary?attemptId=${attemptId}`, { replace: true });
+            return;
+          }
+        }
+
         const data = await examService.startExam(testId);
         setSession(data);
+
+        if (!attemptId) {
+          navigate(`/exam/${testId}/attempt/${data.sessionId}`, { replace: true });
+          return;
+        }
+
+        const details = await examService.getAttemptDetails(attemptId);
+        setWarningCount(details.warningCount || 0);
+
+        const loadedAnswers = {};
+        const initialStates = {};
         
-        // Restore cached progress if exists
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          try {
-            const { answers: cachedAnswers, qStates: cachedStates, index } = JSON.parse(cached);
-            setAnswers(cachedAnswers || {});
-            setQStates(cachedStates || {});
-            setCurrentIdx(index || 0);
-            toast.success('Restored previous testing checkpoint.');
-          } catch (e) {
-            console.error('Failed to parse cached exam progress.');
-          }
-        } else {
-          // Initialize states
-          const initialStates = {};
-          data.questions.forEach((q, idx) => {
+        data.questions.forEach((q, idx) => {
+          const persisted = details.answers[q.id];
+          if (persisted) {
+            loadedAnswers[q.id] = persisted.selectedOption || '';
+            initialStates[q.id] = persisted.status || 'unvisited';
+          } else {
             initialStates[q.id] = idx === 0 ? 'visited' : 'unvisited';
-          });
-          setQStates(initialStates);
+          }
+        });
+
+        setAnswers(loadedAnswers);
+        setQStates(initialStates);
+
+        const firstUnansweredIdx = data.questions.findIndex(q => {
+          const ans = loadedAnswers[q.id];
+          const state = initialStates[q.id];
+          return !ans && state !== 'marked';
+        });
+
+        if (firstUnansweredIdx !== -1) {
+          setCurrentIdx(firstUnansweredIdx);
+        } else {
+          setCurrentIdx(data.questions.length - 1);
         }
       } catch (error) {
         toast.error('Failed to initialize exam session.');
@@ -62,7 +88,7 @@ export const ExamScreen = () => {
       }
     };
     initExam();
-  }, [testId, navigate, cacheKey]);
+  }, [testId, attemptId, navigate]);
 
   // Caching checkpoint
   const saveProgressLocal = useCallback((currentAnswers, currentStates, index) => {
@@ -73,24 +99,23 @@ export const ExamScreen = () => {
     }));
   }, [cacheKey]);
 
-  // Auto-save checkpoint to backend
-  useEffect(() => {
-    if (!session) return;
-    const interval = setInterval(() => {
-      examService.saveCheckpoint(session.sessionId, answers);
-    }, 30000); // every 30s
-    return () => clearInterval(interval);
-  }, [session, answers]);
-
   const activeQuestion = session?.questions[currentIdx];
 
-  const handleAnswerSelect = (optionValue) => {
+  const handleAnswerSelect = async (optionValue) => {
     const updatedAnswers = { ...answers, [activeQuestion.id]: optionValue };
     const updatedStates = { ...qStates, [activeQuestion.id]: 'answered' };
     
     setAnswers(updatedAnswers);
     setQStates(updatedStates);
     saveProgressLocal(updatedAnswers, updatedStates, currentIdx);
+
+    if (session?.sessionId) {
+      try {
+        await examService.saveAnswer(session.sessionId, activeQuestion.id, optionValue);
+      } catch (err) {
+        console.error('Failed to save answer:', err);
+      }
+    }
   };
 
   const handleNext = () => {
@@ -132,7 +157,7 @@ export const ExamScreen = () => {
     }
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     const updatedAnswers = { ...answers };
     delete updatedAnswers[activeQuestion.id];
     
@@ -142,14 +167,30 @@ export const ExamScreen = () => {
     setQStates(updatedStates);
     saveProgressLocal(updatedAnswers, updatedStates, currentIdx);
     toast.success('Cleared selected response.');
+
+    if (session?.sessionId) {
+      try {
+        await examService.clearAnswer(session.sessionId, activeQuestion.id);
+      } catch (err) {
+        console.error('Failed to clear answer:', err);
+      }
+    }
   };
 
-  const handleMarkForReview = () => {
+  const handleMarkForReview = async () => {
     const updatedStates = { ...qStates, [activeQuestion.id]: 'marked' };
     setQStates(updatedStates);
     saveProgressLocal(answers, updatedStates, currentIdx);
     toast.success('Marked question for review.');
     handleNext();
+
+    if (session?.sessionId) {
+      try {
+        await examService.markReview(session.sessionId, activeQuestion.id);
+      } catch (err) {
+        console.error('Failed to mark review:', err);
+      }
+    }
   };
 
   const handleQuestionSelect = (index) => {
@@ -212,11 +253,21 @@ export const ExamScreen = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [session, activeQuestion, currentIdx, answers, qStates, showSubmitModal]);
 
-  const handleProctorViolation = ({ type, count }) => {
-    toast.error(`Security Violation Flagged: ${type}`);
-    if (count >= 3) {
-      toast.error('Maximum warnings exceeded. Submitting examination automatically.');
-      executeSubmission();
+  const handleProctorViolation = async ({ type }) => {
+    if (!session?.sessionId) return;
+    try {
+      const data = await examService.logWarning(session.sessionId, type);
+      setWarningCount(data.warningCount);
+
+      if (data.autoSubmitted) {
+        toast.error('Maximum warnings exceeded. Submitting examination automatically.');
+        executeSubmission();
+      } else {
+        toast.error(`Security Violation Flagged (Warning ${data.warningCount} of ${data.maxWarnings + 1}): ${type}`);
+      }
+    } catch (error) {
+      console.error('Failed to log warning:', error);
+      toast.error(`Security Violation Flagged: ${type}`);
     }
   };
 
@@ -251,15 +302,16 @@ export const ExamScreen = () => {
       onViolation={handleProctorViolation}
       onSnapshot={handleSnapshot}
       proctorActive={!!session?.webcamProctoring && !session?.isPracticeMode}
+      violationsCountProp={warningCount}
     >
       {/* Top Header */}
       <header className="fixed top-0 w-full z-50 bg-surface-container-highest flex justify-between items-center px-4 md:px-margin-desktop py-2.5 border-b-4 border-secondary shadow-md">
-        <div className="flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-3">
           <School className="w-6 h-6 text-primary" />
           <span className="font-h4 text-lg font-bold text-primary">ExamPro</span>
         </div>
         
-        <div className="flex-1 px-4 md:px-12 flex flex-col items-center max-w-xl">
+        <div className="hidden md:flex flex-grow flex-shrink px-4 md:px-12 flex flex-col items-center max-w-xl mx-auto">
           <h1 className="text-xs md:text-sm font-bold text-on-surface truncate w-full text-center mb-1">
             {session.title}
           </h1>
@@ -272,7 +324,7 @@ export const ExamScreen = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between w-full sm:w-auto gap-4">
           <Timer 
             initialSeconds={session.duration * 60} 
             onTimeUp={executeSubmission}
@@ -288,7 +340,7 @@ export const ExamScreen = () => {
       </header>
 
       {/* Main Workspace Canvas */}
-      <main className="mt-28 mb-28 px-4 md:px-margin-desktop grid grid-cols-12 gap-gutter max-w-container-max mx-auto w-full flex-grow">
+      <main className="mt-28 pb-36 px-4 md:px-margin-desktop grid grid-cols-12 gap-gutter max-w-container-max mx-auto w-full flex-grow">
         
         {/* Left Card: Question Stem & Options */}
         <section className="col-span-12 lg:col-span-9 flex flex-col gap-6">
@@ -296,11 +348,12 @@ export const ExamScreen = () => {
             question={activeQuestion}
             selectedAnswer={answers[activeQuestion.id]}
             onAnswerSelect={handleAnswerSelect}
+            onShowNavigator={() => setShowNavigatorModal(true)}
           />
         </section>
 
         {/* Right Sidebar: Navigator grid */}
-        <aside className="col-span-12 lg:col-span-3">
+        <aside className="hidden lg:block col-span-12 lg:col-span-3">
           <div className="sticky top-28">
             <QuestionPalette
               currentQuestionIndex={currentIdx}
@@ -404,6 +457,30 @@ export const ExamScreen = () => {
           <div className="pt-4 flex justify-end">
             <Button variant="gradient" onClick={() => setShowInstructionsModal(false)}>Resume Test</Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Mobile/Tablet Navigator Modal */}
+      <Modal
+        isOpen={showNavigatorModal}
+        onClose={() => setShowNavigatorModal(false)}
+        title="Question Navigator"
+        size="md"
+      >
+        <div className="p-1">
+          <QuestionPalette
+            currentQuestionIndex={currentIdx}
+            states={qStates}
+            questions={session.questions}
+            onQuestionSelect={(idx) => {
+              handleQuestionSelect(idx);
+              setShowNavigatorModal(false);
+            }}
+            onShowInstructions={() => {
+              setShowNavigatorModal(false);
+              setShowInstructionsModal(true);
+            }}
+          />
         </div>
       </Modal>
 

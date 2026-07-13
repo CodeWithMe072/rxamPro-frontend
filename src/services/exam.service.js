@@ -19,6 +19,31 @@ export const examService = {
   async uploadProctorSnapshot(sessionId, image, reason) {
     const response = await api.post(`/exam/proctor/${sessionId}/snapshot`, { image, reason });
     return response.data;
+  },
+
+  async saveAnswer(attemptId, questionId, selectedOption, timeSpent = 0) {
+    const response = await api.post(`/exams/attempts/${attemptId}/answers`, { questionId, selectedOption, timeSpent });
+    return response.data;
+  },
+
+  async clearAnswer(attemptId, questionId) {
+    const response = await api.post('/exams/clear-answer', { attemptId, questionId });
+    return response.data;
+  },
+
+  async getAttemptDetails(attemptId) {
+    const response = await api.get(`/exams/attempts/${attemptId}`);
+    return response.data.data;
+  },
+
+  async logWarning(attemptId, type) {
+    const response = await api.post(`/exams/attempts/${attemptId}/warning`, { type });
+    return response.data.data;
+  },
+
+  async markReview(attemptId, questionId) {
+    const response = await api.post('/exams/mark-review', { attemptId, questionId });
+    return response.data;
   }
 };
 

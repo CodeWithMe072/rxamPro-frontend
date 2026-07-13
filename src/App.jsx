@@ -140,6 +140,11 @@ function App() {
                   <ExamScreen />
                 </ProtectedRoute>
               } />
+              <Route path="/exam/:id/attempt/:attemptId" element={
+                <ProtectedRoute allowedRoles={['student', 'admin']}>
+                  <ExamScreen />
+                </ProtectedRoute>
+              } />
 
               {/* Admin Routes */}
               <Route path="/admin" element={

@@ -1,10 +1,12 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LayoutGrid } from 'lucide-react';
 
 export const QuestionCard = ({
   question,
   selectedAnswer, // string (e.g. 'A') or array of strings (e.g. ['A', 'B'])
-  onAnswerSelect
+  onAnswerSelect,
+  onShowNavigator
 }) => {
   if (!question) return null;
 
@@ -34,9 +36,21 @@ export const QuestionCard = ({
 
   return (
     <div className="glass-card p-4 sm:p-6 md:p-8 rounded-[20px] shadow-lg">
-      <div className="flex justify-between items-center mb-6 border-b border-outline-variant/30 pb-4">
-        <span className="font-h4 text-lg font-bold text-primary">Question {question.number} of 60</span>
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 border-b border-outline-variant/30 pb-4">
+        <div className="flex items-center justify-between w-full sm:w-auto">
+          <span className="font-h4 text-lg font-bold text-primary">
+            Question {question.number} of {question.totalQuestions || 60}
+          </span>
+          {onShowNavigator && (
+            <button 
+              onClick={onShowNavigator}
+              className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl border border-primary/20 transition-all active:scale-95 cursor-pointer ml-4"
+            >
+              <LayoutGrid className="w-4 h-4" /> Navigator
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 items-center">
           <span className="px-3 py-1 bg-surface-container text-on-surface-variant text-xs font-semibold rounded-full border border-outline-variant/20">
             {isMultiple ? 'Multiple Choice' : 'Single Choice'}
           </span>

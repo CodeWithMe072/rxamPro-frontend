@@ -2,10 +2,15 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { ShieldAlert, Maximize } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
-export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proctorActive = false }) => {
+export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proctorActive = false, violationsCountProp = 0 }) => {
   const { uiStrings } = useTheme();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [violationsCount, setViolationsCount] = useState(0);
+  const [violationsCount, setViolationsCount] = useState(violationsCountProp || 0);
+
+  useEffect(() => {
+    setViolationsCount(violationsCountProp || 0);
+  }, [violationsCountProp]);
+
   const [showWarningModal, setShowWarningModal] = useState(false);
   const containerRef = useRef(null);
 
@@ -215,7 +220,7 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   return (
     <div 
       ref={containerRef} 
-      className="min-h-screen bg-background text-on-background select-none flex flex-col relative"
+      className={`min-h-screen bg-background text-on-background select-none flex flex-col relative ${isFullscreen ? '!h-screen !overflow-y-auto' : ''}`}
     >
       {/* Locked Fullscreen Blocker Overlay */}
       {!isFullscreen && (
