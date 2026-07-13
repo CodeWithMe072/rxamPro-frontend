@@ -415,6 +415,38 @@ export const ResultScreen = () => {
                           </div>
                         )}
                       </div>
+                      {item.explanation && (
+                        <div className="mt-4 p-4 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/20 shadow-sm">
+                          <span className="text-primary dark:text-primary-fixed-dim font-bold text-xs flex items-center gap-1.5 mb-2.5">
+                            <span role="img" aria-label="lightbulb">💡</span> Solution & Explanation
+                          </span>
+                          <div className="text-xs text-on-surface leading-relaxed flex flex-col gap-2.5">
+                            {(() => {
+                              const sentences = item.explanation.split(/(?<=\.)\s+/);
+                              return sentences.map((sentence, idx) => {
+                                const trimmed = sentence.trim();
+                                if (!trimmed) return null;
+
+                                const isMath = /([=+\-*/^]|[a-zA-Z]\s*=\s*|λ|θ|ψ|h²|mL²)/.test(trimmed);
+                                if (isMath) {
+                                  return (
+                                    <div key={idx} className="my-1.5 p-3 bg-surface-container-high/60 rounded-lg border-l-4 border-secondary font-mono text-[11px] flex flex-col gap-1 shadow-sm">
+                                      <span className="text-[9px] uppercase tracking-wider text-secondary font-bold">Calculation Step / Formula</span>
+                                      <span className="text-on-surface select-all leading-relaxed whitespace-pre-wrap">{trimmed}</span>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <p key={idx} className="font-normal text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
+                                    {trimmed}
+                                  </p>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </Card>
                   );
                 })
