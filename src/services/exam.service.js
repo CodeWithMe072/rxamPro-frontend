@@ -1,8 +1,11 @@
 import api from './api';
 
 export const examService = {
-  async startExam(testId) {
-    const response = await api.post('/exams/start', { testId });
+  async startExam(testIdOrScheduleId) {
+    const response = await api.post('/exams/start', { 
+      testId: testIdOrScheduleId, 
+      testScheduleId: testIdOrScheduleId 
+    });
     return response.data.data; // { sessionId, testId, title, duration, totalQuestions, questions }
   },
 

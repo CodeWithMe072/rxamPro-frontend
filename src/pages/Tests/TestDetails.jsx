@@ -20,6 +20,14 @@ export const TestDetails = () => {
   const [test, setTest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -42,14 +50,27 @@ export const TestDetails = () => {
 
   const getDecayInfo = (attemptNumber, daysSinceRelease) => {
     let decayCorrectMarks = 5;
+    const useLate = test?.useLatePenalty !== false;
+    const useAttempt = test?.useAttemptPenalty !== false;
+
     if (attemptNumber === 1) {
-      decayCorrectMarks = daysSinceRelease <= 4 ? 5 : 4;
-    } else if (attemptNumber === 2 || attemptNumber === 3) {
-      decayCorrectMarks = 4;
-    } else if (attemptNumber === 4 || attemptNumber === 5) {
-      decayCorrectMarks = 3;
+      if (useLate) {
+        decayCorrectMarks = daysSinceRelease <= 4 ? 5 : 4;
+      } else {
+        decayCorrectMarks = 5;
+      }
     } else {
-      decayCorrectMarks = 2;
+      if (useAttempt) {
+        if (attemptNumber <= 3) {
+          decayCorrectMarks = 4;
+        } else if (attemptNumber <= 8) {
+          decayCorrectMarks = 3;
+        } else {
+          decayCorrectMarks = 2;
+        }
+      } else {
+        decayCorrectMarks = 5;
+      }
     }
     const decayMultiplier = decayCorrectMarks / 5;
     const percentText = `${decayMultiplier * 100}%`;
@@ -57,20 +78,31 @@ export const TestDetails = () => {
   };
 
   const getPenaltyReasonText = (attemptNumber, daysSinceRelease) => {
+    const useLate = test?.useLatePenalty !== false;
+    const useAttempt = test?.useAttemptPenalty !== false;
+
     if (attemptNumber === 1) {
-      if (daysSinceRelease > 4) {
-        return `Late Submission Penalty — First attempt started ${daysSinceRelease} days after test release (80% marks limit).`;
+      if (useLate && daysSinceRelease > 4) {
+        return `Late Submission Penalty — First attempt started ${daysSinceRelease} days after session opening (80% marks limit).`;
       }
       return '';
     }
-    let multiplierText = '';
-    if (attemptNumber === 2 || attemptNumber === 3) multiplierText = '80%';
-    else if (attemptNumber === 4 || attemptNumber === 5) multiplierText = '60%';
-    else multiplierText = '40%';
-    return `Repeat Attempt Penalty — Attempt #${attemptNumber} (reduced to ${multiplierText} of question marks).`;
+    
+    if (useAttempt) {
+      let multiplierText = '';
+      if (attemptNumber <= 3) multiplierText = '80%';
+      else if (attemptNumber <= 8) multiplierText = '60%';
+      else multiplierText = '40%';
+      return `Repeat Attempt Penalty — Attempt #${attemptNumber} (reduced to ${multiplierText} of question marks).`;
+    }
+    
+    return '';
   };
 
   const { decayMultiplier, percentText } = getDecayInfo(test?.attemptNumber || 1, test?.daysSinceRelease || 0);
+
+  const isUpcoming = test?.startDate ? now < new Date(test.startDate) : false;
+  const isExpired = test?.endDate ? now > new Date(test.endDate) : false;
 
   const avgCorrectMarks = test ? (test.totalMarks / test.questionsCount) : 0;
   const avgObtainableCorrectMarks = avgCorrectMarks * decayMultiplier;
@@ -108,6 +140,43 @@ export const TestDetails = () => {
               <h4 className="text-sm font-bold text-secondary">Practice Mode Active</h4>
               <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
                 The answer key for this test is active. This attempt will run in **learning-mode / practice only** and will **not count** toward your total score, average score, or leaderboard rankings.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Scheduling & Attempts Restriction Banners */}
+        {isUpcoming && (
+          <div className="bg-amber-500/10 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-amber-500">Upcoming Examination</h4>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                This examination session has not opened yet. It will open on <strong>{new Date(test.startDate).toLocaleString()}</strong>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isExpired && (
+          <div className="bg-error/10 border-l-4 border-error p-4 rounded-r-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-error">Examination Session Closed</h4>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                This examination session has closed and is no longer accepting new attempts. It ended on <strong>{new Date(test.endDate).toLocaleString()}</strong>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!isExpired && test.maxAttemptsReached && (
+          <div className="bg-error/10 border-l-4 border-error p-4 rounded-r-xl flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-error">Attempt Limit Exceeded</h4>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                You have reached the maximum number of attempts allowed for this examination session ({test.maxAttempts}).
               </p>
             </div>
           </div>
@@ -203,13 +272,39 @@ export const TestDetails = () => {
           >
             Cancel
           </Button>
-          <Button 
-            variant="gradient"
-            onClick={() => setShowConfirmModal(true)}
-            className="px-10"
-          >
-            Commence Examination
-          </Button>
+          {isUpcoming ? (
+            <Button 
+              variant="gradient"
+              disabled
+              className="px-10 opacity-50 cursor-not-allowed"
+            >
+              Starts {new Date(test.startDate).toLocaleString()}
+            </Button>
+          ) : isExpired ? (
+            <Button 
+              variant="gradient"
+              disabled
+              className="px-10 opacity-50 cursor-not-allowed text-error"
+            >
+              Exam Session Closed
+            </Button>
+          ) : test.maxAttemptsReached ? (
+            <Button 
+              variant="gradient"
+              disabled
+              className="px-10 opacity-50 cursor-not-allowed text-error"
+            >
+              Attempt Limit Reached
+            </Button>
+          ) : (
+            <Button 
+              variant="gradient"
+              onClick={() => setShowConfirmModal(true)}
+              className="px-10 animate-button"
+            >
+              Commence Examination
+            </Button>
+          )}
         </div>
 
       </Card>
@@ -231,30 +326,26 @@ export const TestDetails = () => {
                 ⚠️ Attempt {test.attemptNumber || 1} of this test
               </h4>
               <div className="text-xs text-on-surface-variant mt-2 space-y-2 leading-relaxed">
-                {test.attemptNumber === 1 && test.daysSinceRelease <= 4 && (
-                  <p>
-                    <strong className="text-secondary font-bold">✅ Full Marks</strong> — This is your first attempt within the valid window. Correct answers will be scored at 100% of question marks.
-                  </p>
-                )}
-                {test.attemptNumber === 1 && test.daysSinceRelease > 4 && (
-                  <p>
-                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — It's been over 4 days since this test was released. Correct answers will be scored at 80% of question marks.
-                  </p>
-                )}
-                {(test.attemptNumber === 2 || test.attemptNumber === 3) && (
-                  <p>
-                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — This is a repeat attempt (#{test.attemptNumber}). Correct answers will be scored at 80% of question marks.
-                  </p>
-                )}
-                {(test.attemptNumber === 4 || test.attemptNumber === 5) && (
-                  <p>
-                    <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — This is a repeat attempt (#{test.attemptNumber}). Correct answers will be scored at 60% of question marks.
-                  </p>
-                )}
-                {test.attemptNumber >= 6 && (
-                  <p>
-                    <strong className="text-error font-bold">⚠️ Minimum Marks</strong> — You've attempted this test {test.attemptNumber} times. Correct answers will be scored at 40% of question marks.
-                  </p>
+                {test.attemptNumber === 1 ? (
+                  !test.useLatePenalty || test.daysSinceRelease <= 4 ? (
+                    <p>
+                      <strong className="text-secondary font-bold">✅ Full Marks</strong> — Correct answers will be scored at 100% of question marks.
+                    </p>
+                  ) : (
+                    <p>
+                      <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — Correct answers will be scored at 80% of question marks due to late start (opened {test.daysSinceRelease} days ago).
+                    </p>
+                  )
+                ) : (
+                  !test.useAttemptPenalty ? (
+                    <p>
+                      <strong className="text-secondary font-bold">✅ Full Marks</strong> — Repeat attempt penalty is disabled. Correct answers will be scored at 100% of question marks.
+                    </p>
+                  ) : (
+                    <p>
+                      <strong className="text-amber-500 font-bold">⚠️ Reduced Marks</strong> — This is a repeat attempt (#{test.attemptNumber}). Correct answers will be scored at {percentText} of question marks.
+                    </p>
+                  )
                 )}
                 {avgNegativeMarks > 0 ? (
                   <p className="border-t border-outline-variant/20 pt-2 font-medium text-error">

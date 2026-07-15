@@ -205,7 +205,7 @@ export const ResultScreen = () => {
       )}
 
       {/* Student Action: Reveal Answer Key Banner */}
-      {!isStaff && justCompleted && !detailedResults?.answerKeyActive && (
+      {!isStaff && !detailedResults?.answerKeyActive && (
         <Card variant="glass" className="p-5 border border-dashed border-outline-variant/30 flex flex-col md:flex-row items-center justify-between gap-4 bg-surface-container/30 print:hidden">
           <div className="space-y-1 text-center md:text-left">
             <h4 className="text-sm font-bold text-on-surface">Reveal Answer Key?</h4>

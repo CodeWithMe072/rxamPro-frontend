@@ -496,15 +496,17 @@ export const UserManagement = () => {
             <DatePicker
               value={startDate}
               onChange={(val) => setStartDate(val)}
-              placeholder="Select Start Date"
-              label={dateOperator === 'between' ? "From" : "Date"}
+              placeholder="Start Date"
+              size="sm"
+              className="w-full sm:w-36"
             />
             {dateOperator === 'between' && (
               <DatePicker
                 value={endDate}
                 onChange={(val) => setEndDate(val)}
-                placeholder="Select End Date"
-                label="To"
+                placeholder="End Date"
+                size="sm"
+                className="w-full sm:w-36"
               />
             )}
           </div>

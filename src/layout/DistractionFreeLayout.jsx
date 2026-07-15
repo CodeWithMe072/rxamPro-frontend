@@ -22,6 +22,7 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
   const lastViolationTimeRef = useRef(0);
   const mobileHiddenTimeoutRef = useRef(null);
   const pendingSnapshotReasonRef = useRef(null);
+  const wakeLockRef = useRef(null);
 
   // Check fullscreen state
   useEffect(() => {
@@ -43,24 +44,14 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        if (isMobile) {
-          if (mobileHiddenTimeoutRef.current) {
-            clearTimeout(mobileHiddenTimeoutRef.current);
-          }
-          mobileHiddenTimeoutRef.current = setTimeout(() => {
-            triggerViolation('Tab Switch Detected');
-          }, 12000);
-        } else {
-          triggerViolation('Tab Switch Detected');
-        }
-      } else {
-        if (isMobile && mobileHiddenTimeoutRef.current) {
-          clearTimeout(mobileHiddenTimeoutRef.current);
-          mobileHiddenTimeoutRef.current = null;
-          console.log('Mobile tab switch / screen off violation bypassed within 12 seconds grace period.');
-        }
+      // Ignore visibility changes (tab switch/screen off) on mobile to avoid false warning counts
+      if (isMobile) {
+        return;
+      }
 
+      if (document.hidden) {
+        triggerViolation('Tab Switch Detected');
+      } else {
         // Trigger any pending snapshot now that the tab is active and visible
         if (pendingSnapshotReasonRef.current) {
           const reason = pendingSnapshotReasonRef.current;
@@ -72,25 +63,43 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
       }
     };
 
+    const handleWindowBlur = () => {
+      // Ignore window focus loss (screen off/sleep) on mobile to avoid false warning counts
+      if (isMobile) {
+        return;
+      }
+
+      // Ignore if camera request is pending/active
+      if (isRequestingCameraRef.current) {
+        console.log('Window blur ignored: camera permission request active.');
+        return;
+      }
+      triggerViolation('Browser Window Lost Focus');
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (mobileHiddenTimeoutRef.current) {
-        clearTimeout(mobileHiddenTimeoutRef.current);
-      }
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, []);
 
   // Screen Wake Lock API to prevent mobile screen from auto-off/sleeping during the exam
   useEffect(() => {
-    let wakeLock = null;
-
     const requestWakeLock = async () => {
+      if (wakeLockRef.current) return;
       try {
         if ('wakeLock' in navigator) {
-          wakeLock = await navigator.wakeLock.request('screen');
+          const lock = await navigator.wakeLock.request('screen');
+          wakeLockRef.current = lock;
           console.log('Screen Wake Lock successfully acquired.');
+
+          lock.addEventListener('release', () => {
+            console.log('Screen Wake Lock was released.');
+            wakeLockRef.current = null;
+          });
         }
       } catch (err) {
         console.warn(`Screen Wake Lock acquisition failed: ${err.name}, ${err.message}`);
@@ -99,18 +108,37 @@ export const DistractionFreeLayout = ({ children, onViolation, onSnapshot, proct
 
     requestWakeLock();
 
-    // Re-acquire wake lock if tab becomes visible again
+    // Re-acquire wake lock if tab becomes visible, window gains focus, or screen is touched/clicked
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         requestWakeLock();
       }
     };
+
+    const handleFocus = () => {
+      requestWakeLock();
+    };
+
+    const handleInteraction = () => {
+      requestWakeLock();
+    };
+
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      if (wakeLock) {
-        wakeLock.release().catch(err => console.error('Error releasing wake lock:', err));
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release()
+          .then(() => {
+            wakeLockRef.current = null;
+          })
+          .catch(err => console.error('Error releasing wake lock:', err));
       }
     };
   }, []);

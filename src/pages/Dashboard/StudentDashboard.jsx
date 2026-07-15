@@ -19,8 +19,15 @@ export const StudentDashboard = () => {
   const [attempts, setAttempts] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
   const [showInstallBtn, setShowInstallBtn] = useState(!!window.deferredPrompt);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const handleInstallable = () => {
@@ -198,6 +205,42 @@ export const StudentDashboard = () => {
                     <FileText className="w-3.5 h-3.5 text-outline" /> {test.totalMarks} Marks
                   </Badge>
                 </div>
+
+                {(() => {
+                  const startDateObj = test.startDate ? new Date(test.startDate) : null;
+                  const endDateObj = test.endDate ? new Date(test.endDate) : null;
+
+                  if (!startDateObj && !endDateObj) {
+                    return (
+                      <div className="text-[10px] text-secondary bg-secondary/5 p-2 rounded-lg border border-secondary/10 font-semibold text-center">
+                        Always Open
+                      </div>
+                    );
+                  }
+
+                  const isOpen = (!startDateObj || startDateObj <= now) && (!endDateObj || endDateObj >= now);
+                  const isUpcoming = startDateObj && startDateObj > now;
+                  const isClosed = endDateObj && endDateObj < now;
+
+                  return (
+                    <div className="text-[10px] text-on-surface-variant bg-surface-container-low/50 p-2 rounded-lg border border-outline-variant/10 space-y-1 font-medium">
+                      {isOpen && (
+                        <div className="text-secondary font-bold text-center flex items-center justify-center gap-1.5 py-0.5 bg-secondary/10 rounded border border-secondary/20 uppercase tracking-wider">
+                          <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" /> Open Now
+                        </div>
+                      )}
+                      {isUpcoming && startDateObj && (
+                        <div>Opens: <strong className="text-on-surface font-mono">{startDateObj.toLocaleString()}</strong></div>
+                      )}
+                      {isClosed && endDateObj && (
+                        <div className="text-error font-bold text-center py-0.5 bg-error/10 rounded border border-error/20 uppercase tracking-wider">Closed</div>
+                      )}
+                      {endDateObj && !isClosed && (
+                        <div>Closes: <strong className="text-on-surface font-mono">{endDateObj.toLocaleString()}</strong></div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <Button 
                   onClick={() => navigate(`/tests/${test.id}`)}

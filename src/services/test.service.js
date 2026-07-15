@@ -189,6 +189,26 @@ export const testService = {
   async revealAnswers(attemptId) {
     const response = await api.post(`/results/${attemptId}/reveal-answers`);
     return response.data;
+  },
+
+  async getTestSchedules(testId) {
+    const response = await api.get(`/tests/${testId}/schedules`);
+    return response.data.data;
+  },
+
+  async createTestSchedule(testId, scheduleData) {
+    const response = await api.post(`/tests/${testId}/schedules`, scheduleData);
+    return response.data.data;
+  },
+
+  async updateTestSchedule(scheduleId, scheduleData) {
+    const response = await api.put(`/tests/schedules/${scheduleId}`, scheduleData);
+    return response.data.data;
+  },
+
+  async deleteTestSchedule(scheduleId) {
+    const response = await api.delete(`/tests/schedules/${scheduleId}`);
+    return response.data;
   }
 };
 

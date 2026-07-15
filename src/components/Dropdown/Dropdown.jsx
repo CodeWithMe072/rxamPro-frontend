@@ -94,8 +94,18 @@ export const Dropdown = ({
     <div
       ref={menuRef}
       style={menuStyle}
-      className="rounded-[16px] bg-surface-container-highest border border-outline-variant/30 shadow-[0_10px_30px_rgba(0,0,0,0.18)] overflow-hidden p-2 max-h-60 overflow-y-auto"
+      data-dropdown-portal="true"
+      className="rounded-[16px] bg-surface-container-highest border border-outline-variant/30 shadow-[0_10px_30px_rgba(0,0,0,0.18)] overflow-hidden p-2 max-h-60 overflow-y-auto no-scrollbar"
     >
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
       {filteredOptions.length > 0 ? (
         <div className="space-y-1">
           {filteredOptions.map((option) => {
