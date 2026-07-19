@@ -369,6 +369,7 @@ export const TestDetails = () => {
               variant="outline" 
               onClick={() => setShowConfirmModal(false)}
               fullWidth
+              className="h-auto min-h-[44px] py-2.5 text-xs sm:text-sm"
             >
               Cancel
             </Button>
@@ -379,8 +380,9 @@ export const TestDetails = () => {
                 navigate(`/exam/${test.id}`);
               }}
               fullWidth
+              className="h-auto min-h-[44px] py-2.5 text-xs sm:text-sm text-center"
             >
-              I understand, Start Test
+              Start Test
             </Button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { testService } from '../../services/test.service';
 import { Card } from '../../components/Card';
@@ -6,28 +6,35 @@ import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { Loader } from '../../components/Loader';
 import { EmptyState } from '../../components/EmptyState';
+import { Pagination } from '../../components/Pagination';
 import { Calendar, History, ArrowUpRight, Award, Trophy, Timer } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+
 
 export const PreviousAttempts = () => {
   const navigate = useNavigate();
   const [attempts, setAttempts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination]   = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit]     = useState(20);
 
-  useEffect(() => {
-    const fetchAttempts = async () => {
-      try {
-        const data = await testService.getPreviousAttempts();
-        setAttempts(data);
-      } catch (error) {
-        toast.error('Failed to load attempt history.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchAttempts();
-  }, []);
+  const fetchAttempts = useCallback(async (page = currentPage, limit = pageLimit) => {
+    setIsLoading(true);
+    try {
+      const res = await testService.getPreviousAttempts({ page, limit });
+      setAttempts(res.data);
+      setPagination(res.pagination);
+    } catch (error) {
+      toast.error('Failed to load attempt history.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, pageLimit]);
+
+  useEffect(() => { fetchAttempts(currentPage, pageLimit); }, [fetchAttempts]);
+
 
   if (isLoading) {
     return <Loader size="lg" className="min-h-[60vh]" />;
@@ -133,7 +140,15 @@ export const PreviousAttempts = () => {
 
         </Card>
       )}
+
+      {/* Pagination */}
+      <Pagination
+        pagination={pagination}
+        onPageChange={(p) => { setCurrentPage(p); fetchAttempts(p, pageLimit); }}
+        onLimitChange={(l) => { setPageLimit(l); setCurrentPage(1); fetchAttempts(1, l); }}
+      />
     </div>
   );
 };
+
 export default PreviousAttempts;

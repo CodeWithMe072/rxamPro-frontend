@@ -6,7 +6,8 @@ export const QuestionCard = ({
   question,
   selectedAnswer, // string (e.g. 'A') or array of strings (e.g. ['A', 'B'])
   onAnswerSelect,
-  onShowNavigator
+  onShowNavigator,
+  totalQuestions = 1
 }) => {
   if (!question) return null;
 
@@ -39,7 +40,7 @@ export const QuestionCard = ({
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 border-b border-outline-variant/30 pb-4">
         <div className="flex items-center justify-between w-full sm:w-auto">
           <span className="font-h4 text-lg font-bold text-primary">
-            Question {question.number} of {question.totalQuestions || 60}
+            Question {question.number} of {totalQuestions}
           </span>
           {onShowNavigator && (
             <button 

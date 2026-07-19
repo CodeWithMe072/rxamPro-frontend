@@ -26,6 +26,10 @@ export const ThemeSettings = () => {
 
   const [maxAdmins, setMaxAdmins] = useState(1);
   const [maxSubAdmins, setMaxSubAdmins] = useState(5);
+  const [disableBulkImportUsers, setDisableBulkImportUsers] = useState(false);
+  const [disableBulkImportTests, setDisableBulkImportTests] = useState(false);
+  const [disableAddUser, setDisableAddUser] = useState(false);
+  const [disableAddTest, setDisableAddTest] = useState(false);
 
   const [editableStrings, setEditableStrings] = useState({});
 
@@ -34,6 +38,10 @@ export const ThemeSettings = () => {
       if (data) {
         if (data.maxAdmins !== undefined) setMaxAdmins(data.maxAdmins);
         if (data.maxSubAdmins !== undefined) setMaxSubAdmins(data.maxSubAdmins);
+        if (data.disableBulkImportUsers !== undefined) setDisableBulkImportUsers(!!data.disableBulkImportUsers);
+        if (data.disableBulkImportTests !== undefined) setDisableBulkImportTests(!!data.disableBulkImportTests);
+        if (data.disableAddUser !== undefined) setDisableAddUser(!!data.disableAddUser);
+        if (data.disableAddTest !== undefined) setDisableAddTest(!!data.disableAddTest);
       }
     }).catch(() => {});
   }, []);
@@ -66,40 +74,24 @@ export const ThemeSettings = () => {
   };
 
   const handleSave = async () => {
-    // If not 'custom' and no change, do nothing
-    if (pending === colorTheme && pending !== 'custom') return;
-    
-    // Check if custom theme colors are different from current ones
-    const isCustomChanged = pending === 'custom' && (
-      customColors.primary !== customTheme?.primary ||
-      customColors.secondary !== customTheme?.secondary ||
-      customColors.background !== customTheme?.background ||
-      customColors.darkPrimary !== customTheme?.darkPrimary ||
-      customColors.darkSecondary !== customTheme?.darkSecondary ||
-      customColors.darkBackground !== customTheme?.darkBackground
-    );
-
-    if (pending === colorTheme && pending === 'custom' && !isCustomChanged) {
-      toast.error("No changes made to save!");
-      return;
-    }
-
     setSaving(true);
     try {
       const payloadColors = pending === 'custom' ? customColors : undefined;
-      const result = await settingsService.updateTheme(pending, payloadColors, maxAdmins, maxSubAdmins);
+      const extraConfigs = {
+        disableBulkImportUsers,
+        disableBulkImportTests,
+        disableAddUser,
+        disableAddTest
+      };
+      const result = await settingsService.updateTheme(pending, payloadColors, maxAdmins, maxSubAdmins, extraConfigs);
       
       // Update globally
       setColorTheme(pending, payloadColors);
       setLastSaved(result);
       
-      toast.success(
-        pending === 'custom'
-          ? 'Custom theme colors applied successfully!'
-          : `Theme changed to "${THEMES[pending]?.name || 'Custom Theme'}"!`
-      );
+      toast.success('System settings and configuration applied successfully!');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update theme.');
+      toast.error(err.response?.data?.message || 'Failed to update settings.');
     } finally {
       setSaving(false);
     }
@@ -150,7 +142,7 @@ export const ThemeSettings = () => {
           >
             {saving
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-              : <><Check className="w-4 h-4" /> Apply Theme</>
+              : <><Check className="w-4 h-4" /> Save Settings</>
             }
           </Button>
         )}
@@ -556,6 +548,82 @@ export const ThemeSettings = () => {
                   Specifies the maximum allowed Sub-Admin user accounts inside the system.
                 </p>
               </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* System Import & Creation Control Card */}
+        <div className="mt-8">
+          <Card variant="glass" className="space-y-6 border border-outline-variant/20 shadow-md">
+            <div className="flex items-center gap-2 border-b border-outline-variant/20 pb-3">
+              <Settings2 className="w-4.5 h-4.5 text-primary" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-primary">System Action & Import Controls</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-semibold text-on-surface-variant">
+              
+              {/* User management controls */}
+              <div className="space-y-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-widest text-primary">User Accounts Control</h4>
+                
+                <div className="flex items-center justify-between p-3.5 bg-slate-900/40 rounded-xl border border-slate-800">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-on-surface">Block Bulk User Import</span>
+                    <p className="text-[10px] text-on-surface-variant/80">Restrict CSV/Excel/JSON imports of students/staff/sub-admins to Admin role only.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={disableBulkImportUsers}
+                    onChange={(e) => setDisableBulkImportUsers(e.target.checked)}
+                    className="w-5 h-5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-900/40 rounded-xl border border-slate-800">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-on-surface">Block Manual User Creation</span>
+                    <p className="text-[10px] text-on-surface-variant/80">Restrict single manual account creation forms to Admin role only.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={disableAddUser}
+                    onChange={(e) => setDisableAddUser(e.target.checked)}
+                    className="w-5 h-5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Test management controls */}
+              <div className="space-y-4">
+                <h4 className="text-[11px] font-bold uppercase tracking-widest text-primary">Examinations Control</h4>
+                
+                <div className="flex items-center justify-between p-3.5 bg-slate-900/40 rounded-xl border border-slate-800">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-on-surface">Block Bulk Test/Questions Import</span>
+                    <p className="text-[10px] text-on-surface-variant/80">Restrict Excel/JSON test config and question uploader to Admin role only.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={disableBulkImportTests}
+                    onChange={(e) => setDisableBulkImportTests(e.target.checked)}
+                    className="w-5 h-5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-900/40 rounded-xl border border-slate-800">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-on-surface">Block Manual Test Creation</span>
+                    <p className="text-[10px] text-on-surface-variant/80">Restrict manual creation forms of tests/exams to Admin role only.</p>
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    checked={disableAddTest}
+                    onChange={(e) => setDisableAddTest(e.target.checked)}
+                    className="w-5 h-5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                  />
+                </div>
+              </div>
+
             </div>
           </Card>
         </div>

@@ -5,24 +5,31 @@ import { Button } from '../../components/Button';
 import { Loader } from '../../components/Loader';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
+import { Pagination } from '../../components/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { School, Plus, Trash2, Edit2, Users, Calendar, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
+
 
 export const ManageBatches = () => {
   const { user: activeUser } = useAuth();
   const [batches, setBatches] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination]   = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit]     = useState(20);
+
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchName, setBatchName] = useState('');
 
-  const fetchBatches = async () => {
+  const fetchBatches = async (page = currentPage, limit = pageLimit) => {
     setIsLoading(true);
     try {
-      const data = await testService.getBatches();
-      setBatches(data);
+      const res = await testService.getBatches({ page, limit });
+      setBatches(res.data);
+      setPagination(res.pagination);
     } catch (e) {
       toast.error('Failed to load batches list.');
     } finally {
@@ -30,9 +37,8 @@ export const ManageBatches = () => {
     }
   };
 
-  useEffect(() => {
-    fetchBatches();
-  }, []);
+  useEffect(() => { fetchBatches(currentPage, pageLimit); }, [currentPage, pageLimit]);
+
 
   const openCreateModal = () => {
     setEditingBatch(null);
@@ -62,7 +68,7 @@ export const ManageBatches = () => {
         toast.success('Batch created successfully.');
       }
       setIsModalOpen(false);
-      fetchBatches();
+      fetchBatches(currentPage, pageLimit);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save batch.');
     }
@@ -76,11 +82,12 @@ export const ManageBatches = () => {
     try {
       await testService.deleteBatch(id);
       toast.success('Batch deleted successfully.');
-      fetchBatches();
+      fetchBatches(currentPage, pageLimit);
     } catch (err) {
       toast.error('Failed to delete batch.');
     }
   };
+
 
   const handleExportBatch = async (batchId, batchName) => {
     const loadId = toast.loading(`Generating results Excel sheet for ${batchName}...`);
@@ -219,6 +226,14 @@ export const ManageBatches = () => {
           ))}
         </section>
       )}
+
+      {/* Pagination */}
+      <Pagination
+        pagination={pagination}
+        onPageChange={(p) => setCurrentPage(p)}
+        onLimitChange={(l) => { setPageLimit(l); setCurrentPage(1); }}
+      />
+
 
       {/* Create / Edit Modal */}
       {isModalOpen && (

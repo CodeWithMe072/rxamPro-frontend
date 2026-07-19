@@ -349,6 +349,7 @@ export const ExamScreen = () => {
             selectedAnswer={answers[activeQuestion.id]}
             onAnswerSelect={handleAnswerSelect}
             onShowNavigator={() => setShowNavigatorModal(true)}
+            totalQuestions={session.questions.length}
           />
         </section>
 

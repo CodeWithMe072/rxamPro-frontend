@@ -3,7 +3,7 @@ import { testService } from '../../services/test.service';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Loader } from '../../components/Loader';
-import { UploadCloud, FileJson, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { UploadCloud, FileJson, CheckCircle, AlertTriangle, ArrowRight, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const UploadConfig = () => {
@@ -24,7 +24,6 @@ export const UploadConfig = () => {
   };
 
   const validateJSONSchema = (json) => {
-    // Basic verification checks matching backend requirements
     if (!json.title || !json.duration || !Array.isArray(json.questions)) {
       throw new Error("Missing required schema parameters: 'title', 'duration', or 'questions' array.");
     }
@@ -51,8 +50,16 @@ export const UploadConfig = () => {
   };
 
   const processFile = (selectedFile) => {
-    if (selectedFile.type !== "application/json" && !selectedFile.name.endsWith('.json')) {
-      toast.error('Only JSON configurations are supported.');
+    const isJson = selectedFile.name.endsWith('.json');
+    const isExcel = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+
+    if (!isJson && !isExcel) {
+      toast.error('Only JSON (.json) and Excel (.xlsx, .xls) configurations are supported.');
+      return;
+    }
+
+    if (selectedFile.size > 2000000) {
+      toast.error('File size exceeds the 2MB limit.');
       return;
     }
 
@@ -60,18 +67,62 @@ export const UploadConfig = () => {
     setErrorMsg('');
     setParsedData(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target.result);
-        validateJSONSchema(json);
-        setParsedData(json);
-        toast.success('JSON specification parsed successfully.');
-      } catch (err) {
-        setErrorMsg(err.message || 'Malformed JSON file.');
-      }
-    };
-    reader.readAsText(selectedFile);
+    if (isJson) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = JSON.parse(event.target.result);
+          validateJSONSchema(json);
+          setParsedData(json);
+          toast.success('JSON specification parsed successfully.');
+        } catch (err) {
+          setErrorMsg(err.message || 'Malformed JSON file.');
+        }
+      };
+      reader.readAsText(selectedFile);
+    } else {
+      // Excel spreadsheet
+      setParsedData({
+        title: selectedFile.name,
+        isExcel: true,
+        questions: { length: 'Multiple' }
+      });
+      toast.success('Excel configuration file selected.');
+    }
+  };
+
+  const downloadJSONTemplate = async () => {
+    const loadId = toast.loading('Downloading JSON template...');
+    try {
+      const blob = await testService.downloadJSONTemplate();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'sample_exam_template.json');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success('JSON template downloaded!', { id: loadId });
+    } catch (e) {
+      toast.error('Failed to download template.', { id: loadId });
+    }
+  };
+
+  const downloadExcelTemplate = async () => {
+    const loadId = toast.loading('Downloading Excel template...');
+    try {
+      const blob = await testService.downloadExcelTemplate();
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'sample_exam_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success('Excel template downloaded!', { id: loadId });
+    } catch (e) {
+      toast.error('Failed to download template.', { id: loadId });
+    }
   };
 
   const handleImportSubmit = async () => {
@@ -82,7 +133,7 @@ export const UploadConfig = () => {
       formData.append('config', file);
 
       await testService.uploadTestConfig(formData);
-      toast.success('Exam specification and questions bulk-imported successfully!');
+      toast.success('Exam configuration and questions bulk-imported successfully!');
       
       // Reset
       setFile(null);
@@ -99,9 +150,9 @@ export const UploadConfig = () => {
   return (
     <div className="space-y-8 text-on-background max-w-4xl mx-auto">
       <div>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-on-background">Upload JSON Configuration</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-on-background">Upload Exam Configuration</h1>
         <p className="text-xs md:text-sm text-on-surface-variant">
-          Import complete examination questions, schemes, and guidelines directly using a structured JSON file.
+          Import complete examination questions, schemes, and guidelines directly using a structured JSON or Excel spreadsheet.
         </p>
       </div>
 
@@ -111,7 +162,7 @@ export const UploadConfig = () => {
         <section className="lg:col-span-2">
           <Card 
             variant="solid" 
-            className={`border-2 border-dashed p-10 flex flex-col items-center justify-center text-center transition-all ${
+            className={`border-2 border-dashed p-10 flex flex-col items-center justify-center text-center transition-all min-h-[340px] ${
               dragActive ? 'border-secondary bg-surface-container-high/50' : 'border-outline-variant/30'
             }`}
             onDragEnter={handleDrag}
@@ -120,14 +171,14 @@ export const UploadConfig = () => {
             onDrop={handleFileDrop}
           >
             <UploadCloud className="w-16 h-16 text-on-surface-variant/60 mb-4 animate-pulse-soft" />
-            <h3 className="font-h4 text-base font-bold mb-1 text-on-surface">Drag and Drop JSON configuration file</h3>
-            <p className="text-xs text-on-surface-variant/80 max-w-xs mb-6">Support files up to 2MB. Format must strictly align with ExamPro schema rules.</p>
+            <h3 className="font-h4 text-base font-bold mb-1 text-on-surface">Drag and Drop configuration file</h3>
+            <p className="text-xs text-on-surface-variant/80 max-w-xs mb-6">Supports JSON (.json) or Excel (.xlsx, .xls) files up to 2MB.</p>
             
             <input 
               type="file" 
               id="file-upload" 
               className="hidden" 
-              accept=".json"
+              accept=".json,.xlsx,.xls"
               onChange={handleFileInputChange}
             />
             <label htmlFor="file-upload">
@@ -139,24 +190,57 @@ export const UploadConfig = () => {
         </section>
 
         {/* Info panel */}
-        <aside className="lg:col-span-1">
-          <Card variant="solid" className="p-6 flex flex-col justify-between h-full">
+        <aside className="lg:col-span-1 flex flex-col gap-4">
+          <Card variant="solid" className="p-5 flex flex-col justify-between">
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/80 mb-4 font-mono">Sample JSON Spec</h4>
-              <pre className="text-[10px] font-mono bg-surface-container-lowest p-4 rounded-xl text-on-surface-variant overflow-x-auto leading-relaxed border border-outline-variant/20">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/80 mb-3 font-mono">Download Templates</h4>
+              <p className="text-[11px] text-on-surface-variant/90 mb-4 leading-relaxed">
+                Download pre-formatted sample files to see exactly what columns and schema fields to add.
+              </p>
+              
+              <div className="flex flex-col gap-2.5">
+                <button
+                  onClick={downloadJSONTemplate}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant/30 bg-surface-container hover:bg-surface-variant/30 text-xs font-semibold text-on-surface transition-all cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileJson className="w-4 h-4 text-primary" />
+                    Sample JSON Template
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={downloadExcelTemplate}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-outline-variant/30 bg-surface-container hover:bg-surface-variant/30 text-xs font-semibold text-on-surface transition-all cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                    Sample Excel Template
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </Card>
+
+          <Card variant="solid" className="p-5 flex flex-col justify-between">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/80 mb-3 font-mono">JSON Spec Format</h4>
+              <pre className="text-[9px] font-mono bg-surface-container-lowest p-3.5 rounded-xl text-on-surface-variant overflow-x-auto leading-relaxed border border-outline-variant/20 max-h-48">
 {`{
-  "title": "Quantum Physics I",
+  "title": "Sample Exam",
   "duration": 90,
-  "difficulty": "Hard",
+  "difficulty": "Medium",
   "negativeMarking": 0.25,
   "questions": [
     {
-      "question": "Solve for Ψ(x)...",
+      "question": "Question text...",
       "correctAnswer": "A",
-      "category": "Wave Equations",
+      "category": "Math",
       "options": [
-        {"id": "A", "text": "Option A text"},
-        {"id": "B", "text": "Option B text"}
+        "Option A text",
+        "Option B text"
       ]
     }
   ]
@@ -194,10 +278,21 @@ export const UploadConfig = () => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-surface-container-lowest border border-outline-variant/20 rounded-xl text-xs font-semibold text-on-surface-variant">
-                  <div>Title: <span className="text-on-surface block mt-0.5">{parsedData.title}</span></div>
-                  <div>Difficulty: <span className="text-on-surface block mt-0.5">{parsedData.difficulty || 'Medium'}</span></div>
-                  <div>Total Questions: <span className="text-on-surface block mt-0.5">{parsedData.questions.length} MCQs</span></div>
-                  <div>Duration: <span className="text-on-surface block mt-0.5">{parsedData.duration || 60} Minutes</span></div>
+                  {parsedData.isExcel ? (
+                    <>
+                      <div>File Name: <span className="text-on-surface block mt-0.5">{file.name}</span></div>
+                      <div>Type: <span className="text-on-surface block mt-0.5 text-emerald-500">Excel Spreadsheet</span></div>
+                      <div>Size: <span className="text-on-surface block mt-0.5">{(file.size / 1024).toFixed(1)} KB</span></div>
+                      <div>Format: <span className="text-on-surface block mt-0.5 text-secondary">Bilingual Ready</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div>Title: <span className="text-on-surface block mt-0.5">{parsedData.title}</span></div>
+                      <div>Difficulty: <span className="text-on-surface block mt-0.5">{parsedData.difficulty || 'Medium'}</span></div>
+                      <div>Total Questions: <span className="text-on-surface block mt-0.5">{parsedData.questions.length} MCQs</span></div>
+                      <div>Duration: <span className="text-on-surface block mt-0.5">{parsedData.duration || 60} Minutes</span></div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-4">

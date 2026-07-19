@@ -1,9 +1,9 @@
 import api from './api';
 
 export const testService = {
-  async getAvailableTests() {
-    const response = await api.get('/tests');
-    return response.data.data;
+  async getAvailableTests({ page = 1, limit = 20 } = {}) {
+    const response = await api.get('/tests', { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
   async getTestDetails(id) {
@@ -17,9 +17,9 @@ export const testService = {
     return response.data.data;
   },
 
-  async getPreviousAttempts() {
-    const response = await api.get('/attempts');
-    return response.data.data;
+  async getPreviousAttempts({ page = 1, limit = 20 } = {}) {
+    const response = await api.get('/attempts', { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
   async getStudentDashboard() {
@@ -36,6 +36,24 @@ export const testService = {
     const response = await api.get(`/results/${attemptId}/pdf`, {
       responseType: 'blob'
     });
+    return response.data;
+  },
+
+  async downloadTestPDF(testId, params = {}) {
+    const response = await api.get(`/tests/${testId}/pdf`, {
+      params,
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  async downloadJSONTemplate() {
+    const response = await api.get('/tests/templates/json', { responseType: 'blob' });
+    return response.data;
+  },
+
+  async downloadExcelTemplate() {
+    const response = await api.get('/tests/templates/excel', { responseType: 'blob' });
     return response.data;
   },
 
@@ -67,14 +85,14 @@ export const testService = {
     return response.data.data;
   },
 
-  async getAttempts() {
-    const response = await api.get('/admin/attempts');
-    return response.data.data;
+  async getAttempts({ page = 1, limit = 20 } = {}) {
+    const response = await api.get('/admin/attempts', { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
-  async getUsers() {
-    const response = await api.get('/admin/users');
-    return response.data.data;
+  async getUsers({ page = 1, limit = 20 } = {}) {
+    const response = await api.get('/admin/users', { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
   async updateUserRole(id, updateData) {
@@ -127,19 +145,22 @@ export const testService = {
     return response.data;
   },
 
-  async exportTest(testId) {
-    const response = await api.get(`/results/test/${testId}/export`, { responseType: 'blob' });
+  async exportTest(testId, scheduleId = 'all') {
+    const response = await api.get(`/results/test/${testId}/export`, {
+      params: { scheduleId },
+      responseType: 'blob'
+    });
     return response.data;
   },
 
-  async getUserAttempts(userId) {
-    const response = await api.get(`/admin/users/${userId}/attempts`);
-    return response.data.data;
+  async getUserAttempts(userId, { page = 1, limit = 20 } = {}) {
+    const response = await api.get(`/admin/users/${userId}/attempts`, { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
-  async getBatches() {
-    const response = await api.get('/batches');
-    return response.data.data;
+  async getBatches({ page = 1, limit = 20 } = {}) {
+    const response = await api.get('/batches', { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
   async createBatch(data) {
@@ -157,9 +178,9 @@ export const testService = {
     return response.data;
   },
 
-  async getQuestions(testId) {
-    const response = await api.get(`/questions/${testId}`);
-    return response.data.data;
+  async getQuestions(testId, { page = 1, limit = 20 } = {}) {
+    const response = await api.get(`/questions/${testId}`, { params: { page, limit } });
+    return response.data; // returns { data, pagination }
   },
 
   async createQuestion(data) {
@@ -185,6 +206,26 @@ export const testService = {
     });
     return response.data.data;
   },
+
+  async exportQuestions(testId, format = 'json', type = 'data') {
+    const response = await api.get(`/questions/export/${testId}?format=${format}&type=${type}`, {
+      responseType: 'blob'
+    });
+    const ext      = format === 'excel' ? 'xlsx' : 'json';
+    const mimeType = format === 'excel'
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'application/json';
+    const suffix   = type === 'template' ? '_template' : '_questions';
+    const url  = URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+    const link = document.createElement('a');
+    link.href  = url;
+    link.download = `questions${suffix}_${testId}.${ext}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
+
 
   async revealAnswers(attemptId) {
     const response = await api.post(`/results/${attemptId}/reveal-answers`);

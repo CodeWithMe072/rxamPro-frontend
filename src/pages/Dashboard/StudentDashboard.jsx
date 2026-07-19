@@ -57,8 +57,8 @@ export const StudentDashboard = () => {
           testService.getPreviousAttempts(),
           testService.getStudentDashboard()
         ]);
-        setTests(testsData.slice(0, 3)); // show top 3 tests
-        setAttempts(attemptsData);
+        setTests(testsData.data.slice(0, 3)); // show top 3 tests
+        setAttempts(attemptsData.data);
         setDashboardStats(statsData);
       } catch (error) {
         toast.error('Failed to load dashboard data.');

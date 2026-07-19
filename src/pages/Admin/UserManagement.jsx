@@ -7,8 +7,10 @@ import { Loader } from '../../components/Loader';
 import { useAuth } from '../../context/AuthContext';
 import { Dropdown } from '../../components/Dropdown';
 import { DatePicker } from '../../components/DatePicker';
+import { Pagination } from '../../components/Pagination';
 import { Users, Search, ShieldAlert, UserPlus, UserCheck, ShieldX, Trash2, School, Filter, Mail, RefreshCw, CheckCircle2, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
+
 
 export const UserManagement = () => {
   const { user: activeUser } = useAuth();
@@ -50,13 +52,25 @@ export const UserManagement = () => {
   const [showSnapshotsModal, setShowSnapshotsModal] = useState(false);
   const [selectedAttemptForSnapshots, setSelectedAttemptForSnapshots] = useState(null);
 
-  const handleViewAttempts = async (userObj) => {
+  // Users pagination state
+  const [usersPagination, setUsersPagination] = useState(null);
+  const [usersPage, setUsersPage]             = useState(1);
+  const [usersLimit, setUsersLimit]           = useState(20);
+
+  // Attempts modal pagination
+  const [attemptsPagination, setAttemptsPagination] = useState(null);
+  const [attemptsPage, setAttemptsPage]             = useState(1);
+
+
+  const handleViewAttempts = async (userObj, page = 1) => {
     setSelectedUserForAttempts(userObj);
     setShowAttemptsModal(true);
     setLoadingAttempts(true);
+    setAttemptsPage(page);
     try {
-      const data = await testService.getUserAttempts(userObj.id);
-      setUserAttemptsList(data);
+      const res = await testService.getUserAttempts(userObj.id, { page, limit: 20 });
+      setUserAttemptsList(res.data);
+      setAttemptsPagination(res.pagination);
     } catch (e) {
       toast.error('Failed to load student attempts log.');
     } finally {
@@ -64,9 +78,15 @@ export const UserManagement = () => {
     }
   };
 
+
   const handleFileImport = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 2000000) {
+      toast.error('File size exceeds the 2MB limit.');
+      return;
+    }
 
     // Reset input value so same file can be uploaded again if needed
     e.target.value = '';
@@ -84,15 +104,16 @@ export const UserManagement = () => {
     }
   };
 
-  const fetchUsersAndBatches = async () => {
+  const fetchUsersAndBatches = async (page = usersPage, limit = usersLimit) => {
     setIsLoading(true);
     try {
-      const [usersData, batchesData] = await Promise.all([
-        testService.getUsers(),
-        testService.getBatches()
+      const [usersRes, batchesRes] = await Promise.all([
+        testService.getUsers({ page, limit }),
+        testService.getBatches({ page: 1, limit: 100 }) // load all batches for dropdowns
       ]);
-      setUsers(usersData);
-      setBatches(batchesData);
+      setUsers(usersRes.data);
+      setUsersPagination(usersRes.pagination);
+      setBatches(batchesRes.data);
     } catch (e) {
       toast.error('Failed to load user and batch directories.');
     } finally {
@@ -100,9 +121,8 @@ export const UserManagement = () => {
     }
   };
 
-  useEffect(() => {
-    fetchUsersAndBatches();
-  }, []);
+  useEffect(() => { fetchUsersAndBatches(usersPage, usersLimit); }, [usersPage, usersLimit]);
+
 
   // Reset all filters whenever the active tab changes
   useEffect(() => {
@@ -786,7 +806,15 @@ export const UserManagement = () => {
         </Card>
       </section>
 
+      {/* ── Users Pagination ──────────────────────────────────────────── */}
+      <Pagination
+        pagination={usersPagination}
+        onPageChange={(p) => setUsersPage(p)}
+        onLimitChange={(l) => { setUsersLimit(l); setUsersPage(1); }}
+      />
+
       {/* ── Add User Modal ─────────────────────────────────────────── */}
+
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <Card variant="solid" className="w-full max-w-lg p-6 border border-outline-variant/30 shadow-2xl">
@@ -1075,11 +1103,19 @@ export const UserManagement = () => {
               )}
             </div>
 
+            {/* Attempts Modal Pagination */}
+            <Pagination
+              pagination={attemptsPagination}
+              onPageChange={(p) => handleViewAttempts(selectedUserForAttempts, p)}
+              onLimitChange={() => {}}
+            />
+
             <div className="flex justify-end pt-4 border-t border-outline-variant/20 mt-6">
-              <Button onClick={() => { setShowAttemptsModal(false); setUserAttemptsList([]); }} variant="outline" className="px-8">
+              <Button onClick={() => { setShowAttemptsModal(false); setUserAttemptsList([]); setAttemptsPagination(null); }} variant="outline" className="px-8">
                 Close
               </Button>
             </div>
+
           </Card>
         </div>
       )}

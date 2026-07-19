@@ -9,7 +9,8 @@ import { testService } from '../../services/test.service';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Trophy, CheckCircle, XCircle, 
-  Clock, Award, Home, Search, Printer, School 
+  Clock, Award, Home, Search, Printer, School, Crown,
+  CheckSquare, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -31,10 +32,12 @@ export const ResultScreen = () => {
   const isStaff = ['admin', 'sub-admin', 'staff'].includes(activeUser?.role);
 
   useEffect(() => {
-    if (attemptId && !detailedResults) {
+    if (attemptId) {
       const fetchResult = async () => {
         try {
-          setIsLoading(true);
+          if (!detailedResults) {
+            setIsLoading(true);
+          }
           const data = await testService.getAttemptResult(attemptId);
           setDetailedResults(data);
         } catch (error) {
@@ -46,7 +49,7 @@ export const ResultScreen = () => {
       };
       fetchResult();
     }
-  }, [attemptId, detailedResults]);
+  }, [attemptId]);
 
   const handleRevealAnswers = async () => {
     if (!window.confirm("Are you sure you want to reveal the correct answers? Under penalty rules, any future attempts of this test will be marked as practice mode and will not count towards your score statistics.")) {
@@ -157,18 +160,37 @@ export const ResultScreen = () => {
     ]
   };
 
-  const stats = [
-    { label: 'Score Earned', val: `${demoResults.score} / ${demoResults.totalMarks}`, icon: Award, color: 'text-primary' },
-    { label: 'Time Spent', val: `${demoResults.durationMinutes} Mins`, icon: Clock, color: 'text-tertiary' },
-    { label: 'Accuracy', val: `${demoResults.accuracy}%`, icon: Trophy, color: 'text-secondary' },
-    { label: 'Grade Awarded', val: demoResults.grade, icon: CheckCircle, color: 'text-primary-fixed-dim' }
-  ];
-
   const answersList = demoResults.answersSummary || [];
   const allCount = answersList.length;
   const correctCount = answersList.filter(item => item.isCorrect).length;
   const wrongCount = answersList.filter(item => !item.isCorrect && item.selected !== 'None' && item.selected !== 'skipped' && item.selected !== '').length;
   const missedCount = answersList.filter(item => item.selected === 'None' || item.selected === 'skipped' || item.selected === '').length;
+
+  const stats = [
+    { label: 'Score Earned', val: `${demoResults.score} / ${demoResults.totalMarks}`, icon: Award, color: 'text-primary' },
+    { label: 'Questions Attempted', val: `${allCount - (demoResults.unansweredCount || 0)} / ${allCount}`, icon: CheckSquare, color: 'text-secondary' },
+    { label: 'Time Spent', val: `${demoResults.durationMinutes} Mins`, icon: Clock, color: 'text-tertiary' },
+    { label: 'Accuracy', val: `${demoResults.accuracy}%`, icon: Trophy, color: 'text-secondary' },
+    { label: 'Grade Awarded', val: demoResults.grade, icon: CheckCircle, color: 'text-primary-fixed-dim' }
+  ];
+
+  if (demoResults.activeRank) {
+    stats.push({
+      label: 'Rank Achieved',
+      val: `#${demoResults.activeRank}`,
+      icon: Crown,
+      color: 'text-amber-500'
+    });
+  }
+
+  if (demoResults.percentile !== undefined && !demoResults.isPracticeMode) {
+    stats.push({
+      label: 'Percentile Rank',
+      val: `${demoResults.percentile}%`,
+      icon: TrendingUp,
+      color: 'text-primary-container'
+    });
+  }
 
   const filteredAnswers = answersList.filter(item => {
     if (reviewFilter === 'correct') return item.isCorrect;
@@ -205,7 +227,7 @@ export const ResultScreen = () => {
       )}
 
       {/* Student Action: Reveal Answer Key Banner */}
-      {!isStaff && !detailedResults?.answerKeyActive && (
+      {!isStaff && detailedResults?.answerKeyConfigured && !detailedResults?.answerKeyActive && (
         <Card variant="glass" className="p-5 border border-dashed border-outline-variant/30 flex flex-col md:flex-row items-center justify-between gap-4 bg-surface-container/30 print:hidden">
           <div className="space-y-1 text-center md:text-left">
             <h4 className="text-sm font-bold text-on-surface">Reveal Answer Key?</h4>
@@ -220,14 +242,14 @@ export const ResultScreen = () => {
       )}
 
       {/* Stats Cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 print:hidden">
+      <section className={`grid grid-cols-2 sm:grid-cols-3 ${stats.length >= 6 ? 'lg:grid-cols-4' : (stats.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4')} gap-4 sm:gap-6 print:hidden`}>
         {stats.map((s, idx) => {
           const Icon = s.icon;
           return (
-            <Card key={idx} variant="glass" className="text-center flex flex-col items-center p-6 border-white/20">
-              <Icon className={`w-8 h-8 ${s.color} mb-3`} />
-              <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">{s.label}</p>
-              <h3 className="text-xl font-bold text-on-surface mt-1 font-mono">{s.val}</h3>
+            <Card key={idx} variant="glass" className="text-center flex flex-col items-center p-4 sm:p-6 border-white/20">
+              <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${s.color} mb-2 sm:mb-3`} />
+              <p className="text-[9px] sm:text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">{s.label}</p>
+              <h3 className="text-base sm:text-xl font-bold text-on-surface mt-0.5 sm:mt-1 font-mono">{s.val}</h3>
             </Card>
           );
         })}
@@ -551,15 +573,39 @@ export const ResultScreen = () => {
       )}
 
       {/* Navigation actions */}
-      <section className="flex flex-wrap gap-4 justify-center pt-4 print:hidden">
-        <Button variant="outline" onClick={() => navigate('/dashboard')} className="flex items-center gap-2">
-          <Home className="w-4 h-4" /> Back to Dashboard
+      <section className="flex flex-row gap-2 justify-center pt-4 print:hidden w-full max-w-lg mx-auto">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => navigate('/dashboard')} 
+          className="flex-1 flex items-center justify-center gap-1 px-1 sm:px-4 h-9 sm:h-10 text-[10px] sm:text-xs font-bold whitespace-nowrap min-w-0"
+        >
+          <Home className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">
+            <span className="hidden sm:inline">Back to </span>Dashboard
+          </span>
         </Button>
-        <Button variant="gradient" onClick={handleDownloadPDF} className="flex items-center gap-2">
-          <Printer className="w-4 h-4" /> Download PDF Report
+        <Button 
+          variant="gradient" 
+          size="sm" 
+          onClick={handleDownloadPDF} 
+          className="flex-1 flex items-center justify-center gap-1 px-1 sm:px-4 h-9 sm:h-10 text-[10px] sm:text-xs font-bold whitespace-nowrap min-w-0"
+        >
+          <Printer className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">
+            <span className="hidden sm:inline">Download </span>PDF Report
+          </span>
         </Button>
-        <Button variant="outline" onClick={() => navigate('/tests')} className="flex items-center gap-2">
-          <Search className="w-4 h-4" /> Explore More Tests
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => navigate('/tests')} 
+          className="flex-1 flex items-center justify-center gap-1 px-1 sm:px-4 h-9 sm:h-10 text-[10px] sm:text-xs font-bold whitespace-nowrap min-w-0"
+        >
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="truncate">
+            <span className="hidden sm:inline">Explore </span>More Tests
+          </span>
         </Button>
       </section>
 

@@ -7,8 +7,261 @@ import { Badge } from '../../components/Badge';
 import { Loader } from '../../components/Loader';
 import { Modal } from '../../components/Modal';
 import { Dropdown } from '../../components/Dropdown';
-import { ArrowLeft, Plus, Edit2, Trash2, HelpCircle, FileText, Settings, BadgeAlert, UploadCloud } from 'lucide-react';
+import { Pagination } from '../../components/Pagination';
+import {
+  ArrowLeft, Plus, Edit2, Trash2, HelpCircle, UploadCloud,
+  Download, FileJson, FileSpreadsheet, X, CheckCircle2
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// ─── JSON output sample ───────────────────────────────────────────────────────
+const JSON_PREVIEW = `[
+  {
+    "question":      "What is the state animal of Haryana?",
+    "options":       ["Cow", "Blackbuck", "Nilgai", "Tiger"],
+    "correctAnswer": "B",
+    "category":      "General Knowledge",
+    "difficulty":    "Easy",
+    "marks":         1,
+    "negativeMarks": 0.25,
+    "explanation":   "The state animal of Haryana is the Blackbuck."
+  },
+  { "...more questions" }
+]`;
+
+const EXCEL_COLUMNS = [
+  { col: '#',            desc: 'Serial number' },
+  { col: 'Question',     desc: 'Full question text' },
+  { col: 'Option A',     desc: 'First option' },
+  { col: 'Option B',     desc: 'Second option' },
+  { col: 'Option C',     desc: 'Third option (if any)' },
+  { col: 'Option D',     desc: 'Fourth option (if any)' },
+  { col: 'Option E',     desc: 'Fifth option (if any)' },
+  { col: 'CorrectAnswer',desc: 'Letter: A / B / C / D / E' },
+  { col: 'Category',     desc: 'Topic / category label' },
+  { col: 'Difficulty',   desc: 'Easy / Medium / Hard' },
+  { col: 'Marks',        desc: 'Positive marks awarded' },
+  { col: 'NegativeMarks',desc: 'Marks deducted on wrong answer' },
+  { col: 'Explanation',  desc: 'Solution rationale (optional)' },
+];
+
+// ─── Export Modal ─────────────────────────────────────────────────────────────
+const ExportModal = ({ testId, testTitle, onClose }) => {
+  const [format, setFormat]   = useState('json');
+  const [type, setType]       = useState('data');   // 'data' | 'template'
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    setLoading(true);
+    const label = `${format === 'excel' ? 'Excel' : 'JSON'} (${type === 'template' ? 'Format only' : 'With data'})`;
+    const toastId = toast.loading(`Exporting as ${label}…`);
+    try {
+      await testService.exportQuestions(testId, format, type);
+      toast.success('Questions exported & downloaded!', { id: toastId });
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Export failed.', { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadLabel = `Download ${format === 'excel' ? 'Excel' : 'JSON'} · ${type === 'template' ? 'Format only' : 'With data'}`;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-surface-container rounded-2xl border border-outline-variant/30 shadow-2xl shadow-black/50 flex flex-col max-h-[90vh] overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center">
+              <Download className="w-5 h-5 text-secondary" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-on-surface">Export Questions</h2>
+              <p className="text-[10px] text-on-surface-variant font-semibold truncate max-w-xs">{testTitle}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+
+          {/* ── Step 1 — Format selector */}
+          <div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2.5">1. Choose file format</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: 'json',  Icon: FileJson,        label: 'JSON',         sub: 'Array of question objects (.json)' },
+                { key: 'excel', Icon: FileSpreadsheet,  label: 'Excel (.xlsx)', sub: 'Spreadsheet — one question per row' },
+              ].map(({ key, Icon, label, sub }) => (
+                <button
+                  key={key}
+                  onClick={() => setFormat(key)}
+                  className={`
+                    flex items-center gap-3 p-4 rounded-xl border text-left cursor-pointer
+                    transition-all duration-150
+                    ${format === key
+                      ? 'border-secondary bg-secondary/8 shadow-sm shadow-secondary/20'
+                      : 'border-outline-variant/30 bg-surface-container-low hover:border-secondary/40 hover:bg-secondary/4'
+                    }
+                  `}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${format === key ? 'bg-secondary/15 text-secondary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold ${format === key ? 'text-secondary' : 'text-on-surface'}`}>{label}</p>
+                    <p className="text-[10px] text-on-surface-variant font-semibold leading-tight">{sub}</p>
+                  </div>
+                  {format === key && <CheckCircle2 className="w-4 h-4 text-secondary flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Step 2 — Export type */}
+          <div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2.5">2. Select export type</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                {
+                  key: 'data',
+                  emoji: '📦',
+                  label: 'With data',
+                  sub: 'Export all actual questions from this exam',
+                  badge: null,
+                },
+                {
+                  key: 'template',
+                  emoji: '📋',
+                  label: 'Format only',
+                  sub: 'Empty template with correct column/key structure',
+                  badge: 'For import prep',
+                },
+              ].map(({ key, emoji, label, sub, badge }) => (
+                <button
+                  key={key}
+                  onClick={() => setType(key)}
+                  className={`
+                    flex items-start gap-3 p-4 rounded-xl border text-left cursor-pointer
+                    transition-all duration-150
+                    ${type === key
+                      ? 'border-primary bg-primary/8 shadow-sm shadow-primary/20'
+                      : 'border-outline-variant/30 bg-surface-container-low hover:border-primary/40 hover:bg-primary/4'
+                    }
+                  `}
+                >
+                  <span className="text-2xl flex-shrink-0 mt-0.5">{emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`text-sm font-bold ${type === key ? 'text-primary' : 'text-on-surface'}`}>{label}</p>
+                      {badge && (
+                        <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full uppercase tracking-wide">{badge}</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant font-semibold leading-tight mt-0.5">{sub}</p>
+                  </div>
+                  {type === key && <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Step 3 — Output format preview */}
+          <div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2.5">3. Output format preview</p>
+
+            {format === 'json' ? (
+              <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2 bg-surface-container border-b border-outline-variant/15">
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+                  </div>
+                  <span className="text-[10px] font-bold text-on-surface-variant ml-1">
+                    {type === 'template' ? 'template.json' : 'questions_export.json'}
+                  </span>
+                  <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    type === 'template' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
+                  }`}>
+                    {type === 'template' ? '1 example row' : 'Re-importable'}
+                  </span>
+                </div>
+                <pre className="text-[11px] text-on-surface-variant/90 font-mono p-4 overflow-x-auto leading-relaxed whitespace-pre-wrap">{JSON_PREVIEW}</pre>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-outline-variant/20 overflow-hidden">
+                <div className="bg-surface-container px-4 py-2.5 border-b border-outline-variant/15 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-on-surface-variant">
+                    {type === 'template' ? 'template.xlsx' : 'questions_export.xlsx'} — Column structure
+                  </span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    type === 'template' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
+                  }`}>
+                    {type === 'template' ? '1 example row' : `${EXCEL_COLUMNS.length} columns`}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="bg-surface-container-low text-on-surface-variant font-bold uppercase tracking-wider border-b border-outline-variant/15">
+                        <th className="text-left px-3 py-2">Column</th>
+                        <th className="text-left px-3 py-2">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/10">
+                      {EXCEL_COLUMNS.map(({ col, desc }) => (
+                        <tr key={col} className="hover:bg-surface-container/40">
+                          <td className="px-3 py-2 font-mono font-bold text-on-surface">{col}</td>
+                          <td className="px-3 py-2 text-on-surface-variant">{desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-outline-variant/20 flex items-center justify-between gap-3 bg-surface-container/50">
+          <p className="text-[10px] text-on-surface-variant font-semibold">
+            {type === 'template'
+              ? 'Download an empty template you can fill in and re-import.'
+              : 'All questions in this exam will be included in the export.'
+            }
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" size="sm" onClick={onClose} className="h-9 px-5">Cancel</Button>
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={handleExport}
+              disabled={loading}
+              className="h-9 px-5 flex items-center gap-2"
+            >
+              {loading
+                ? <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                : <Download className="w-4 h-4" />
+              }
+              {downloadLabel}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export const ManageQuestions = () => {
   const { id: testId } = useParams();
@@ -18,10 +271,16 @@ export const ManageQuestions = () => {
   const [test, setTest] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination]   = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit]     = useState(20);
+
 
   // Modal & Form State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [isModalOpen, setIsModalOpen]           = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion]   = useState(null);
+
   const [formData, setFormData] = useState({
     question: '',
     options: ['', '', '', ''], // A, B, C, D default
@@ -33,25 +292,27 @@ export const ManageQuestions = () => {
     explanation: ''
   });
 
-  const fetchTestAndQuestions = useCallback(async () => {
+  const fetchTestAndQuestions = useCallback(async (page = currentPage, limit = pageLimit) => {
     setIsLoading(true);
     try {
-      const [testData, questionsData] = await Promise.all([
+      const [testData, questionsRes] = await Promise.all([
         testService.getTestDetails(testId),
-        testService.getQuestions(testId)
+        testService.getQuestions(testId, { page, limit })
       ]);
       setTest(testData);
-      setQuestions(questionsData);
+      setQuestions(questionsRes.data);
+      setPagination(questionsRes.pagination);
     } catch (e) {
       toast.error('Failed to load test questions.');
     } finally {
       setIsLoading(false);
     }
-  }, [testId]);
+  }, [testId, currentPage, pageLimit]);
 
   useEffect(() => {
-    fetchTestAndQuestions();
+    fetchTestAndQuestions(currentPage, pageLimit);
   }, [fetchTestAndQuestions]);
+
 
   const openCreateModal = () => {
     setEditingQuestion(null);
@@ -108,7 +369,7 @@ export const ManageQuestions = () => {
         toast.success('New question added successfully.');
       }
       setIsModalOpen(false);
-      fetchTestAndQuestions();
+      fetchTestAndQuestions(currentPage, pageLimit);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save question.');
     }
@@ -119,18 +380,27 @@ export const ManageQuestions = () => {
       try {
         await testService.deleteQuestion(qId);
         toast.success('Question deleted successfully.');
-        fetchTestAndQuestions();
+        fetchTestAndQuestions(currentPage, pageLimit);
       } catch (e) {
         toast.error('Failed to delete question.');
       }
     }
   };
 
+
   const handleJSONUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
-      toast.error('Please select a valid JSON file.');
+    const isJson = file.name.endsWith('.json');
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    
+    if (!isJson && !isExcel) {
+      toast.error('Please select a valid JSON or Excel file.');
+      return;
+    }
+
+    if (file.size > 2000000) {
+      toast.error('File size exceeds the 2MB limit.');
       return;
     }
 
@@ -138,13 +408,14 @@ export const ManageQuestions = () => {
     try {
       await testService.importQuestionsJSON(testId, file);
       toast.success('Questions imported successfully!', { id: toastId });
-      fetchTestAndQuestions();
+      fetchTestAndQuestions(1, pageLimit); // reload from page 1 after bulk import
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to import questions JSON.', { id: toastId });
+      toast.error(err.response?.data?.message || 'Failed to import questions.', { id: toastId });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
 
   if (isLoading) return <Loader size="lg" className="min-h-[60vh]" />;
   if (!test) return <div className="text-center py-10 text-on-surface-variant">Test not found.</div>;
@@ -162,8 +433,9 @@ export const ManageQuestions = () => {
           </button>
           <h1 className="text-xl md:text-2xl font-extrabold text-on-surface">{test.title}</h1>
           <p className="text-xs text-on-surface-variant">
-            Managing {questions.length} questions in catalog • Difficulty: {test.difficulty} • Marks: {test.totalMarks} M
+            Managing {pagination?.total ?? questions.length} questions in catalog • Difficulty: {test.difficulty} • Marks: {test.totalMarks} M
           </p>
+
         </div>
 
         <div className="flex items-center gap-3">
@@ -171,7 +443,7 @@ export const ManageQuestions = () => {
             type="file"
             ref={fileInputRef}
             onChange={handleJSONUpload}
-            accept=".json,application/json"
+            accept=".json,.xlsx,.xls"
             className="hidden"
           />
           <Button
@@ -180,7 +452,16 @@ export const ManageQuestions = () => {
             size="sm"
             className="flex items-center gap-2 h-10 px-4"
           >
-            <UploadCloud className="w-4 h-4" /> Import JSON
+            <UploadCloud className="w-4 h-4" /> Import JSON / Excel
+          </Button>
+
+          <Button
+            onClick={() => setIsExportModalOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 h-10 px-4"
+          >
+            <Download className="w-4 h-4" /> Export
           </Button>
 
           <Button onClick={openCreateModal} variant="gradient" size="sm" className="flex items-center gap-2 h-10 px-4">
@@ -272,6 +553,23 @@ export const ManageQuestions = () => {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      <Pagination
+        pagination={pagination}
+        onPageChange={(p) => { setCurrentPage(p); fetchTestAndQuestions(p, pageLimit); }}
+        onLimitChange={(l) => { setPageLimit(l); setCurrentPage(1); fetchTestAndQuestions(1, l); }}
+        pageSizeOptions={[10, 20, 50, 100]}
+      />
+
+      {/* Export Modal */}
+      {isExportModalOpen && (
+        <ExportModal
+          testId={testId}
+          testTitle={test.title}
+          onClose={() => setIsExportModalOpen(false)}
+        />
       )}
 
       {/* Question Add/Edit Modal */}

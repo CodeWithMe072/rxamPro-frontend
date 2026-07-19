@@ -32,9 +32,9 @@ export const AvailableTests = () => {
   useEffect(() => {
     const fetchTests = async () => {
       try {
-        const data = await testService.getAvailableTests();
-        setTests(data);
-        setFilteredTests(data);
+        const res = await testService.getAvailableTests({ page: 1, limit: 1000 });
+        setTests(res.data || []);
+        setFilteredTests(res.data || []);
       } catch (error) {
         toast.error('Failed to retrieve test catalog.');
       } finally {

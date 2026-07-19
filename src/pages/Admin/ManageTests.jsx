@@ -12,8 +12,10 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Dropdown } from '../../components/Dropdown';
 import { DatePicker } from '../../components/DatePicker';
-import { Trash2, Edit2, Plus, FileText, AlertCircle, School, Eye, Calendar, Settings } from 'lucide-react';
+import { Trash2, Edit2, Plus, FileText, AlertCircle, School, Eye, Calendar, Settings, Download } from 'lucide-react';
+import { Pagination } from '../../components/Pagination';
 import toast from 'react-hot-toast';
+
 
 const TestSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -44,6 +46,10 @@ export const ManageTests = () => {
   const [tests, setTests] = useState([]);
   const [batches, setBatches] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination]   = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit]     = useState(20);
+
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
@@ -75,6 +81,24 @@ export const ManageTests = () => {
   const [scheduleUseAttemptPenalty, setScheduleUseAttemptPenalty] = useState(true);
   const [scheduleIsPublished, setScheduleIsPublished] = useState(true);
 
+  // PDF Download configuration states
+  const [selectedTestForPDF, setSelectedTestForPDF] = useState(null);
+  const [isPDFModalOpen, setIsPDFModalOpen] = useState(false);
+  const [pdfWithAnswer, setPdfWithAnswer] = useState(true);
+  const [pdfColumns, setPdfColumns] = useState(2);
+  const [pdfLanguagesMode, setPdfLanguagesMode] = useState('both'); // 'hindi', 'english', 'both'
+  const [pdfFirstColLang, setPdfFirstColLang] = useState('hindi');
+  const [pdfSecondColLang, setPdfSecondColLang] = useState('english');
+  const [pdfAvailableLangs, setPdfAvailableLangs] = useState(['hindi', 'english']);
+  const [isPdfConfigSaving, setIsPdfConfigSaving] = useState(false);
+
+  // Excel Export configuration states
+  const [selectedTestForExcel, setSelectedTestForExcel] = useState(null);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelSchedules, setExcelSchedules] = useState([]);
+  const [selectedExcelSchedule, setSelectedExcelSchedule] = useState('all');
+  const [isExcelLoading, setIsExcelLoading] = useState(false);
+
   const { register, handleSubmit, formState: { errors }, reset, setValue, control, watch } = useForm({
     resolver: zodResolver(TestSchema),
     defaultValues: {
@@ -85,15 +109,16 @@ export const ManageTests = () => {
 
   const watchStartDate = watch('startDate');
 
-  const fetchTestsAndBatches = async () => {
+  const fetchTestsAndBatches = async (page = currentPage, limit = pageLimit) => {
     setIsLoading(true);
     try {
-      const [testsData, batchesData] = await Promise.all([
-        testService.getAvailableTests(),
-        testService.getBatches()
+      const [testsRes, batchesRes] = await Promise.all([
+        testService.getAvailableTests({ page, limit }),
+        testService.getBatches({ page: 1, limit: 100 })
       ]);
-      setTests(testsData);
-      setBatches(batchesData);
+      setTests(testsRes.data);
+      setPagination(testsRes.pagination);
+      setBatches(batchesRes.data);
     } catch (e) {
       toast.error('Failed to reload tests list.');
     } finally {
@@ -101,14 +126,14 @@ export const ManageTests = () => {
     }
   };
 
-  useEffect(() => {
-    fetchTestsAndBatches();
-  }, []);
+  useEffect(() => { fetchTestsAndBatches(currentPage, pageLimit); }, [currentPage, pageLimit]);
+
 
   const openCreateModal = () => {
     setEditingTest(null);
     reset({
       title: '', subject: '', category: '', questionsCount: 50, duration: 90, totalMarks: 100, negativeMarking: 0.25, difficulty: 'Medium', color: 'primary', batch: '', webcamProctoring: false,
+      answerKeyActive: false,
       useLatePenalty: true, useAttemptPenalty: true, maxAttempts: 0, startDate: '', endDate: ''
     });
     setIsModalOpen(true);
@@ -128,6 +153,7 @@ export const ManageTests = () => {
       color: test.color || 'primary',
       batch: test.batch?._id || test.batch || '',
       webcamProctoring: !!test.webcamProctoring,
+      answerKeyActive: !!test.answerKeyActive,
       useLatePenalty: test.useLatePenalty !== false,
       useAttemptPenalty: test.useAttemptPenalty !== false,
       maxAttempts: test.maxAttempts || 0,
@@ -273,21 +299,141 @@ export const ManageTests = () => {
     }
   };
 
-  const handleExportTest = async (testId, testTitle) => {
-    const loadId = toast.loading(`Generating score spreadsheet for ${testTitle}...`);
+  const openExcelModal = async (testId, testTitle) => {
+    const test = tests.find(t => t.id === testId);
+    if (!test) return;
+
+    setSelectedTestForExcel(test);
+    setSelectedExcelSchedule('all');
+    setIsExcelLoading(true);
+    setIsExcelModalOpen(true);
+
     try {
-      const blob = await testService.exportTest(testId);
+      const scheds = await testService.getTestSchedules(testId);
+      setExcelSchedules(scheds || []);
+    } catch (err) {
+      toast.error('Failed to load conducting sessions.');
+    } finally {
+      setIsExcelLoading(false);
+    }
+  };
+
+  const handleDownloadExcelWithConfig = async () => {
+    if (!selectedTestForExcel) return;
+
+    const loadId = toast.loading(`Generating score spreadsheet for ${selectedTestForExcel.title}...`);
+    try {
+      const blob = await testService.exportTest(selectedTestForExcel.id, selectedExcelSchedule);
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `exam_results_${testTitle.replace(/\s+/g, '_')}.xlsx`);
+      link.setAttribute('download', `exam_results_${selectedTestForExcel.title.replace(/\s+/g, '_')}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
       toast.success('Excel standings generated successfully!', { id: loadId });
+      setIsExcelModalOpen(false);
     } catch (e) {
       toast.error('Failed to export test results.', { id: loadId });
     }
+  };
+
+  const handleExportTest = (testId, testTitle) => {
+    openExcelModal(testId, testTitle);
+  };
+
+  const openDownloadPDFModal = async (testId, testTitle) => {
+    // Find the test details from our tests list
+    const test = tests.find(t => t.id === testId);
+    if (!test) return;
+
+    setSelectedTestForPDF(test);
+    setPdfWithAnswer(test.pdfConfig?.withAnswer !== false);
+    setPdfColumns(test.pdfConfig?.columnsPerRow || 2);
+    
+    // Default languages mode based on saved config
+    let defaultMode = 'both';
+    if (test.pdfConfig?.languages?.length === 1) {
+      defaultMode = test.pdfConfig.languages[0];
+    }
+    setPdfLanguagesMode(defaultMode);
+    setPdfFirstColLang(test.pdfConfig?.firstColumnLanguage || 'hindi');
+    setPdfSecondColLang(test.pdfConfig?.secondColumnLanguage || 'english');
+
+    const loadId = toast.loading('Analyzing test language options...');
+    try {
+      const qs = await testService.getQuestions(testId);
+      const isBilingual = qs.some(q => 
+        q.question.includes('//') || 
+        q.question.includes('||') || 
+        q.options.some(o => o.includes('//') || o.includes('||'))
+      );
+      if (isBilingual) {
+        setPdfAvailableLangs(['hindi', 'english']);
+      } else {
+        // Detect if questions contain Hindi characters
+        const hasHindi = qs.some(q => /[\u0900-\u097F]/.test(q.question));
+        setPdfAvailableLangs(hasHindi ? ['hindi'] : ['english']);
+        setPdfLanguagesMode(hasHindi ? 'hindi' : 'english');
+      }
+      toast.dismiss(loadId);
+      setIsPDFModalOpen(true);
+    } catch (err) {
+      toast.error('Failed to load test details for PDF configuration.', { id: loadId });
+    }
+  };
+
+  const handleDownloadPDFWithConfig = async (saveConfig = false) => {
+    if (!selectedTestForPDF) return;
+    
+    const loadId = toast.loading('Generating your custom question paper PDF...');
+    try {
+      const languages = pdfLanguagesMode === 'both' ? ['hindi', 'english'] : [pdfLanguagesMode];
+      
+      const configPayload = {
+        withAnswer: pdfWithAnswer,
+        columnsPerRow: Number(pdfColumns),
+        languages,
+        firstColumnLanguage: pdfFirstColLang,
+        secondColumnLanguage: pdfSecondColLang
+      };
+
+      if (saveConfig) {
+        setIsPdfConfigSaving(true);
+        // Call update test service to store this permanently in the DB
+        await testService.updateTest(selectedTestForPDF.id, { pdfConfig: configPayload });
+        // Update local state list
+        setTests(prev => prev.map(t => t.id === selectedTestForPDF.id ? { ...t, pdfConfig: configPayload } : t));
+      }
+
+      // Trigger the download call with options
+      const blob = await testService.downloadTestPDF(selectedTestForPDF.id, {
+        withAnswer: pdfWithAnswer,
+        columns: pdfColumns,
+        languages: pdfLanguagesMode,
+        firstColLang: pdfFirstColLang,
+        secondColLang: pdfSecondColLang
+      });
+
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Exam_${selectedTestForPDF.title.replace(/\s+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      
+      toast.success('Question paper PDF generated successfully!', { id: loadId });
+      setIsPDFModalOpen(false);
+    } catch (e) {
+      toast.error('Failed to generate customized PDF.', { id: loadId });
+    } finally {
+      setIsPdfConfigSaving(false);
+    }
+  };
+
+  const handleDownloadTestPDF = (testId, testTitle) => {
+    openDownloadPDFModal(testId, testTitle);
   };
 
   if (isLoading) {
@@ -339,34 +485,58 @@ export const ManageTests = () => {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-outline-variant/20 flex flex-col gap-2">
-              <Button 
-                onClick={() => openSchedulesModal(test)}
-                variant="outline" 
-                size="sm" 
-                fullWidth
-                className="flex items-center justify-center gap-1.5 h-10 hover:bg-secondary/5 text-secondary border-secondary/20 cursor-pointer text-xs font-semibold"
-              >
-                <Calendar className="w-4 h-4" /> Conduct Sessions (Schedules)
-              </Button>
-              <Button 
-                onClick={() => openAttemptsModal(test)}
-                variant="gradient" 
-                size="sm" 
-                fullWidth
-                className="flex items-center justify-center gap-1.5 h-10 cursor-pointer text-xs font-semibold"
-              >
-                <Eye className="w-4 h-4" /> View Student Attempts
-              </Button>
-              <Button 
-                onClick={() => handleExportTest(test.id, test.title)}
-                variant="outline" 
-                size="sm" 
-                fullWidth
-                className="flex items-center justify-center gap-1.5 h-10 hover:bg-primary/5 text-primary border-primary/20 cursor-pointer text-xs font-semibold"
-              >
-                <FileText className="w-4 h-4" /> Export Results to Excel
-              </Button>
+            <div className="mt-4 pt-4 border-t border-outline-variant/20 flex items-center justify-around gap-2">
+              <div className="relative group">
+                <button 
+                  onClick={() => openSchedulesModal(test)}
+                  className="w-11 h-11 rounded-full flex items-center justify-center border border-outline-variant/20 bg-surface-container/40 text-secondary hover:text-white hover:bg-secondary hover:border-secondary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <Calendar className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] font-bold rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-150 whitespace-nowrap shadow-xl border border-slate-800/80 z-20">
+                  Conduct Sessions (Schedules)
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-950"></div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button 
+                  onClick={() => openAttemptsModal(test)}
+                  className="w-11 h-11 rounded-full flex items-center justify-center border border-outline-variant/20 bg-surface-container/40 text-primary hover:text-white hover:bg-primary hover:border-primary transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <Eye className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] font-bold rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-150 whitespace-nowrap shadow-xl border border-slate-800/80 z-20">
+                  View Student Attempts
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-950"></div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button 
+                  onClick={() => handleExportTest(test.id, test.title)}
+                  className="w-11 h-11 rounded-full flex items-center justify-center border border-outline-variant/20 bg-surface-container/40 text-emerald-500 hover:text-white hover:bg-emerald-500 hover:border-emerald-500 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <FileText className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] font-bold rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-150 whitespace-nowrap shadow-xl border border-slate-800/80 z-20">
+                  Export Results to Excel
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-950"></div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button 
+                  onClick={() => handleDownloadTestPDF(test.id, test.title)}
+                  className="w-11 h-11 rounded-full flex items-center justify-center border border-outline-variant/20 bg-surface-container/40 text-orange-500 hover:text-white hover:bg-orange-500 hover:border-orange-500 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] font-bold rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-150 whitespace-nowrap shadow-xl border border-slate-800/80 z-20">
+                  Download Test Paper PDF
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-950"></div>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-4 pt-6 mt-4 border-t border-outline-variant/20">
@@ -381,7 +551,15 @@ export const ManageTests = () => {
         ))}
       </section>
 
+      {/* Tests Pagination */}
+      <Pagination
+        pagination={pagination}
+        onPageChange={(p) => setCurrentPage(p)}
+        onLimitChange={(l) => { setPageLimit(l); setCurrentPage(1); }}
+      />
+
       {/* Creation / Editing Modal */}
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -495,16 +673,29 @@ export const ManageTests = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
-            <input 
-              type="checkbox" 
-              id="webcamProctoring"
-              className="w-4.5 h-4.5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
-              {...register('webcamProctoring')}
-            />
-            <label htmlFor="webcamProctoring" className="cursor-pointer select-none">
-              Enable Webcam Snapshot Proctoring (Captures periodic & infraction photo logs)
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
+              <input 
+                type="checkbox" 
+                id="webcamProctoring"
+                className="w-4.5 h-4.5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                {...register('webcamProctoring')}
+              />
+              <label htmlFor="webcamProctoring" className="cursor-pointer select-none">
+                Enable Webcam Snapshot Proctoring
+              </label>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
+              <input 
+                type="checkbox" 
+                id="answerKeyActive"
+                className="w-4.5 h-4.5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                {...register('answerKeyActive')}
+              />
+              <label htmlFor="answerKeyActive" className="cursor-pointer select-none">
+                Enable Student Answer Key Reveal
+              </label>
+            </div>
           </div>
 
           <div className="text-xs font-bold text-secondary uppercase tracking-wider pt-2 border-t border-outline-variant/20">
@@ -985,6 +1176,188 @@ export const ManageTests = () => {
           <div className="flex gap-4 pt-4 border-t border-outline-variant/20">
             <Button variant="outline" fullWidth onClick={() => setIsConfigureScheduleModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveSchedule} variant="gradient" fullWidth>Save Schedule</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Download PDF Settings Modal */}
+      <Modal
+        isOpen={isPDFModalOpen}
+        onClose={() => setIsPDFModalOpen(false)}
+        title={`Custom PDF Export Settings — ${selectedTestForPDF?.title || 'Exam'}`}
+        size="lg"
+      >
+        <div className="space-y-5 text-on-surface text-left">
+          <p className="text-xs text-on-surface-variant font-medium">
+            Customize the layout, languages, and answer key configurations before exporting the question paper to PDF.
+          </p>
+
+          {/* 1. Answer Sheet Setting */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">Answer Highlight Option</label>
+            <div className="grid grid-cols-2 gap-3 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setPdfWithAnswer(true)}
+                className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 ${pdfWithAnswer ? 'bg-primary/10 border-primary text-primary shadow-sm' : 'bg-surface-container-low border-outline-variant/30 text-on-surface-variant hover:bg-surface-container'}`}
+              >
+                With Answer Key
+              </button>
+              <button
+                type="button"
+                onClick={() => setPdfWithAnswer(false)}
+                className={`py-3 px-4 rounded-xl border flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 ${!pdfWithAnswer ? 'bg-primary/10 border-primary text-primary shadow-sm' : 'bg-surface-container-low border-outline-variant/30 text-on-surface-variant hover:bg-surface-container'}`}
+              >
+                Questions Only (No Answers)
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Columns per row */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">Columns Per Row (Layout Grid)</label>
+            <Dropdown
+              options={[
+                { value: 1, label: '1 Column (Full Page Width)' },
+                { value: 2, label: '2 Columns (Side-by-Side Grid)' }
+              ]}
+              value={pdfColumns}
+              onChange={(val) => setPdfColumns(Number(val))}
+            />
+          </div>
+
+          {/* 3. Language settings */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">Question Paper Language</label>
+            <Dropdown
+              options={
+                pdfAvailableLangs.includes('hindi') && pdfAvailableLangs.includes('english')
+                  ? [
+                      { value: 'both', label: 'Bilingual (Both Hindi & English)' },
+                      { value: 'hindi', label: 'Hindi Only (हिंदी)' },
+                      { value: 'english', label: 'English Only' }
+                    ]
+                  : pdfAvailableLangs.includes('hindi')
+                  ? [{ value: 'hindi', label: 'Hindi Only (हिंदी)' }]
+                  : [{ value: 'english', label: 'English Only' }]
+              }
+              value={pdfLanguagesMode}
+              onChange={setPdfLanguagesMode}
+            />
+          </div>
+
+          {/* 4. Sub-settings for Bilingual mapping */}
+          {pdfLanguagesMode === 'both' && (
+            <div className="p-4 bg-surface-container-low border border-outline-variant/30 rounded-2xl space-y-4">
+              <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">Bilingual Column Mapping</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-on-surface-variant">First Column Language</label>
+                  <Dropdown
+                    options={[
+                      { value: 'hindi', label: 'Hindi (हिंदी)' },
+                      { value: 'english', label: 'English' }
+                    ]}
+                    value={pdfFirstColLang}
+                    onChange={setPdfFirstColLang}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-on-surface-variant">Second Column Language</label>
+                  <Dropdown
+                    options={[
+                      { value: 'hindi', label: 'Hindi (हिंदी)' },
+                      { value: 'english', label: 'English' }
+                    ]}
+                    value={pdfSecondColLang}
+                    onChange={setPdfSecondColLang}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Save Default Option */}
+          <div className="pt-2">
+            <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs font-semibold text-on-surface">
+              <input 
+                type="checkbox" 
+                id="saveDefaultPdfSettings"
+                className="w-4.5 h-4.5 text-primary bg-surface-container border-outline-variant rounded focus:ring-primary accent-primary cursor-pointer"
+                defaultChecked={true}
+              />
+              <label htmlFor="saveDefaultPdfSettings" className="cursor-pointer select-none">
+                Save these settings as default for this test
+              </label>
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex gap-4 pt-4 border-t border-outline-variant/20">
+            <Button variant="outline" fullWidth onClick={() => setIsPDFModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                const saveCheck = document.getElementById('saveDefaultPdfSettings')?.checked;
+                handleDownloadPDFWithConfig(!!saveCheck);
+              }} 
+              variant="gradient" 
+              fullWidth
+              disabled={isPdfConfigSaving}
+            >
+              {isPdfConfigSaving ? 'Saving & Generating...' : 'Download PDF'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Excel Export Settings Modal */}
+      <Modal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        title={`Export Results to Excel — ${selectedTestForExcel?.title || 'Exam'}`}
+        size="md"
+      >
+        <div className="space-y-5 text-on-surface text-left">
+          <p className="text-xs text-on-surface-variant font-medium">
+            Select the conducting session (schedule) you want to export results for.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">Conducting Session</label>
+            {isExcelLoading ? (
+              <Loader size="sm" className="py-4" />
+            ) : (
+              <Dropdown
+                options={[
+                  { value: 'all', label: 'All Sessions (Combined Standings)' },
+                  ...excelSchedules.map(s => {
+                    const dateStr = s.startDate ? new Date(s.startDate).toLocaleDateString() : 'Always Open';
+                    return {
+                      value: s._id,
+                      label: `${s.batch?.name || 'Unassigned Batch'} (${dateStr})`
+                    };
+                  })
+                ]}
+                value={selectedExcelSchedule}
+                onChange={setSelectedExcelSchedule}
+              />
+            )}
+          </div>
+
+          <div className="flex gap-4 pt-4 border-t border-outline-variant/20">
+            <Button variant="outline" fullWidth onClick={() => setIsExcelModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDownloadExcelWithConfig} 
+              variant="gradient" 
+              fullWidth
+              disabled={isExcelLoading}
+            >
+              Export to Excel
+            </Button>
           </div>
         </div>
       </Modal>

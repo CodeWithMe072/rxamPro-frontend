@@ -15,8 +15,14 @@ export const settingsService = {
    * @param {string} themeKey
    * @param {object} [customTheme]
    */
-  updateTheme: async (themeKey, customTheme, maxAdmins, maxSubAdmins) => {
-    const res = await api.put('/settings/theme', { activeTheme: themeKey, customTheme, maxAdmins, maxSubAdmins });
+  updateTheme: async (themeKey, customTheme, maxAdmins, maxSubAdmins, extraConfigs = {}) => {
+    const res = await api.put('/settings/theme', { 
+      activeTheme: themeKey, 
+      customTheme, 
+      maxAdmins, 
+      maxSubAdmins, 
+      ...extraConfigs 
+    });
     return res.data.data;
   },
 
