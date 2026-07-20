@@ -1,11 +1,11 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 
 // Context Providers
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Route guards
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -45,6 +45,9 @@ import { ThemeSettings } from './pages/Admin/ThemeSettings';
 // Error Page
 import { NotFound } from './pages/Errors/NotFound';
 
+// Global modals
+import { BannedModal } from './components/BannedModal';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -70,6 +73,7 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <BrowserRouter>
+            <BannedModalGate />
             <Toaster 
               position="top-right"
               toastOptions={{
@@ -187,6 +191,16 @@ function App() {
                   <AdminLayout><ThemeSettings /></AdminLayout>
                 </ProtectedRoute>
               } />
+              <Route path="/admin/profile" element={
+                <ProtectedRoute allowedRoles={['admin', 'sub-admin', 'staff']}>
+                  <AdminLayout><Profile /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/settings" element={
+                <ProtectedRoute allowedRoles={['admin', 'sub-admin', 'staff']}>
+                  <AdminLayout><Settings /></AdminLayout>
+                </ProtectedRoute>
+              } />
 
               {/* Fallback Catch-all Route */}
               <Route path="/404" element={<PublicLayout><NotFound /></PublicLayout>} />
@@ -201,3 +215,30 @@ function App() {
 }
 
 export default App;
+
+/**
+ * BannedModalGate — auto-logs out and redirects to /login the moment
+ * a 403 "banned" response is detected from any API call.
+ * No modal, no button — silent immediate kick-out with a toast notification.
+ */
+function BannedModalGate() {
+  const { isBanned, logout } = useAuth();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (isBanned) {
+      logout();
+      toast.error('🚫 Your account has been suspended by management. Access denied.', {
+        duration: 6000,
+        style: {
+          background: 'var(--color-error-container, #3b0000)',
+          color: 'var(--color-on-error-container, #ffb4ab)',
+          border: '1px solid var(--color-error, #cf6679)',
+        },
+      });
+      navigate('/login', { replace: true });
+    }
+  }, [isBanned, logout, navigate]);
+
+  return null; // renders nothing
+}

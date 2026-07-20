@@ -5,7 +5,8 @@ import { useTheme } from '../context/ThemeContext';
 import { 
   School, LayoutDashboard, FileText, Upload, 
   BarChart3, Users, Settings, LogOut, Sun, Moon, 
-  Laptop, Search, Bell, Menu, ChevronLeft, ChevronRight, UserCog, Palette
+  Laptop, Search, Bell, Menu, ChevronLeft, ChevronRight,
+  UserCog, Palette, User
 } from 'lucide-react';
 
 export const AdminLayout = ({ children }) => {
@@ -53,7 +54,7 @@ export const AdminLayout = ({ children }) => {
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full text-on-surface">
+    <div className="flex flex-col h-full text-on-surface relative">
       {/* Brand & Header */}
       <div className="mb-8 px-2 flex justify-between items-center">
         <Link to="/admin" className="flex items-center gap-3">
@@ -66,16 +67,26 @@ export const AdminLayout = ({ children }) => {
         </Link>
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden md:flex p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors"
+          className="hidden md:flex absolute -right-7 top-5 w-6 h-6 bg-surface-container border border-outline-variant/30 rounded-full items-center justify-center text-on-surface-variant hover:text-primary shadow-md hover:scale-110 transition-all z-50 cursor-pointer"
         >
-          {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {sidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
       </div>
 
       {/* User profile capsule */}
-      <div className={`mb-8 p-3 bg-surface-container-low dark:bg-surface-dim rounded-2xl flex items-center gap-3 border border-outline-variant/20 transition-all ${sidebarCollapsed ? 'justify-center p-2' : ''}`}>
-        <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold overflow-hidden flex-shrink-0">
-          <UserCog className="w-5 h-5 text-white" />
+      <div className={`mb-8 flex items-center transition-all ${
+        sidebarCollapsed 
+          ? 'justify-center bg-transparent border-transparent p-0' 
+          : 'p-3 bg-surface-container-low dark:bg-surface-dim rounded-2xl gap-3 border border-outline-variant/20'
+      }`}>
+        <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center font-bold overflow-hidden flex-shrink-0 border-2 border-primary/20 shadow-sm">
+          {activeAdmin.avatar ? (
+            <img className="w-full h-full object-cover" alt={activeAdmin.name} src={activeAdmin.avatar} />
+          ) : (
+            <span className="text-sm font-bold text-primary select-none">
+              {(activeAdmin.name || 'A').charAt(0).toUpperCase()}
+            </span>
+          )}
         </div>
         {!sidebarCollapsed && (
           <div className="min-w-0">
@@ -95,11 +106,15 @@ export const AdminLayout = ({ children }) => {
               to={item.path}
               end={item.path === '/admin'}
               className={({ isActive }) => 
-                `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
+                `flex items-center transition-all ${
+                  sidebarCollapsed 
+                    ? 'w-12 h-12 justify-center rounded-full mx-auto' 
+                    : 'gap-3 px-4 py-3 rounded-xl font-bold'
+                } ${
                   isActive 
                     ? 'bg-primary-container text-on-primary-container shadow-md shadow-primary/10' 
                     : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
-                } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
+                }`
               }
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
@@ -111,16 +126,68 @@ export const AdminLayout = ({ children }) => {
 
       {/* Bottom Actions */}
       <div className="mt-auto pt-4 border-t border-outline-variant/20 space-y-1">
-        <Link 
-          to="/dashboard"
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-primary dark:text-primary-fixed hover:bg-surface-variant/50 transition-all ${sidebarCollapsed ? 'justify-center px-0' : ''}`}
+
+        {/* Profile */}
+        <NavLink
+          to="/admin/profile"
+          className={({ isActive }) =>
+            `flex items-center transition-all ${
+              sidebarCollapsed
+                ? 'w-12 h-12 justify-center rounded-full mx-auto'
+                : 'gap-3 px-4 py-3 rounded-xl font-bold'
+            } ${
+              isActive
+                ? 'bg-primary-container text-on-primary-container shadow-md shadow-primary/10'
+                : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
+            }`
+          }
         >
-          <School className="w-5 h-5 flex-shrink-0" />
-          {!sidebarCollapsed && <span className="font-small text-sm">Student View</span>}
-        </Link>
-        <button 
+          <User className="w-5 h-5 flex-shrink-0" />
+          {!sidebarCollapsed && <span className="font-small text-sm">Profile</span>}
+        </NavLink>
+
+        {/* Settings */}
+        <NavLink
+          to="/admin/settings"
+          className={({ isActive }) =>
+            `flex items-center transition-all ${
+              sidebarCollapsed
+                ? 'w-12 h-12 justify-center rounded-full mx-auto'
+                : 'gap-3 px-4 py-3 rounded-xl font-bold'
+            } ${
+              isActive
+                ? 'bg-primary-container text-on-primary-container shadow-md shadow-primary/10'
+                : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
+            }`
+          }
+        >
+          <Settings className="w-5 h-5 flex-shrink-0" />
+          {!sidebarCollapsed && <span className="font-small text-sm">Settings</span>}
+        </NavLink>
+
+        {/* Student View (admin only) */}
+        {activeAdmin.role === 'admin' && (
+          <Link
+            to="/dashboard"
+            className={`flex items-center transition-all text-primary dark:text-primary-fixed hover:bg-surface-variant/50 cursor-pointer ${
+              sidebarCollapsed
+                ? 'w-12 h-12 justify-center rounded-full mx-auto'
+                : 'gap-3 px-4 py-3 rounded-xl font-bold'
+            }`}
+          >
+            <School className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && <span className="font-small text-sm">Student View</span>}
+          </Link>
+        )}
+
+        {/* Logout */}
+        <button
           onClick={logout}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-error hover:bg-error-container/20 transition-all ${sidebarCollapsed ? 'justify-center px-0' : ''}`}
+          className={`flex items-center transition-all text-error hover:bg-error-container/20 cursor-pointer ${
+            sidebarCollapsed
+              ? 'w-12 h-12 justify-center rounded-full mx-auto'
+              : 'w-full gap-3 px-4 py-3 rounded-xl font-bold'
+          }`}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!sidebarCollapsed && <span className="font-small text-sm">Logout</span>}

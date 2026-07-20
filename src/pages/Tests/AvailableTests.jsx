@@ -20,6 +20,8 @@ export const AvailableTests = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedSubject, setSelectedSubject] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('live'); // 'live', 'upcoming', 'closed', 'all'
+  const [sortBy, setSortBy] = useState('newest'); // 'newest', 'oldest'
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -47,6 +49,22 @@ export const AvailableTests = () => {
   useEffect(() => {
     let result = tests;
     
+    // Status Filter (active / live / upcoming / closed)
+    result = result.filter(t => {
+      const startDateObj = t.startDate ? new Date(t.startDate) : null;
+      const endDateObj = t.endDate ? new Date(t.endDate) : null;
+      
+      const isOpen = (!startDateObj || startDateObj <= now) && (!endDateObj || endDateObj >= now);
+      const isUpcoming = startDateObj && startDateObj > now;
+      const isClosed = endDateObj && endDateObj < now;
+
+      if (statusFilter === 'active') return !isClosed;
+      if (statusFilter === 'live') return isOpen;
+      if (statusFilter === 'upcoming') return isUpcoming;
+      if (statusFilter === 'closed') return isClosed;
+      return true; // 'all'
+    });
+
     // Search query check
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -63,8 +81,15 @@ export const AvailableTests = () => {
       result = result.filter(t => t.subject === selectedSubject);
     }
 
+    // Sort tests
+    if (sortBy === 'newest') {
+      result = [...result].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    } else if (sortBy === 'oldest') {
+      result = [...result].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    }
+
     setFilteredTests(result);
-  }, [searchQuery, selectedSubject, tests]);
+  }, [searchQuery, selectedSubject, statusFilter, sortBy, tests, now]);
 
   // Unique list of subjects
   const subjects = ['all', ...new Set(tests.map(t => t.subject).filter(Boolean))];
@@ -77,39 +102,75 @@ export const AvailableTests = () => {
     <div className="space-y-8">
       
       {/* Header and Controls */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div>
-          <h1 className="font-h3 text-2xl md:text-3xl font-bold text-on-surface">Available Examinations</h1>
-          <p className="font-body text-xs md:text-sm text-on-surface-variant">
-            Choose an exam below to view guidelines and commence testing.
-          </p>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div>
+            <h1 className="font-h3 text-2xl md:text-3xl font-bold text-on-surface">Available Examinations</h1>
+            <p className="font-body text-xs md:text-sm text-on-surface-variant mt-1">
+              Choose an exam below to view guidelines and commence testing.
+            </p>
+          </div>
+
+          {/* Filter controls */}
+          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
+              <input 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tests..."
+                className="w-full h-11 pl-10 pr-4 bg-surface-container dark:bg-surface-container-low border border-outline-variant/30 rounded-xl font-body text-xs focus:ring-2 focus:ring-primary/20 text-on-surface"
+              />
+            </div>
+
+            {/* Subject Filter Dropdown */}
+            <div className="w-full sm:w-40">
+              <Dropdown
+                value={selectedSubject}
+                onChange={setSelectedSubject}
+                options={subjects.map(subj => ({
+                  value: subj,
+                  label: subj === 'all' ? 'All Subjects' : subj
+                }))}
+              />
+            </div>
+
+            {/* Sorting Dropdown */}
+            <div className="w-full sm:w-40">
+              <Dropdown
+                value={sortBy}
+                onChange={setSortBy}
+                options={[
+                  { value: 'newest', label: 'Newest First' },
+                  { value: 'oldest', label: 'Oldest First' }
+                ]}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Filter controls */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-          {/* Search Input */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-            <input 
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tests..."
-              className="w-full h-11 pl-10 pr-4 bg-surface-container dark:bg-surface-container-low border border-outline-variant/30 rounded-xl font-body text-xs focus:ring-2 focus:ring-primary/20 text-on-surface"
-            />
-          </div>
-
-          {/* Subject Filter Dropdown */}
-          <div className="w-full sm:w-48">
-            <Dropdown
-              value={selectedSubject}
-              onChange={setSelectedSubject}
-              options={subjects.map(subj => ({
-                value: subj,
-                label: subj === 'all' ? 'All Subjects' : subj
-              }))}
-            />
-          </div>
+        {/* Status Filter Tabs */}
+        <div className="flex border-b border-outline-variant/20 font-bold text-xs uppercase tracking-wider text-on-surface-variant gap-6 pt-2">
+          {[
+            { id: 'live', label: 'Live Now' },
+            { id: 'upcoming', label: 'Upcoming' },
+            { id: 'closed', label: 'Closed' },
+            { id: 'all', label: 'All Sessions' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`pb-3 transition-all relative font-extrabold focus:outline-none cursor-pointer ${
+                statusFilter === tab.id 
+                  ? 'text-primary dark:text-primary-fixed border-b-2 border-primary dark:border-primary-fixed font-black' 
+                  : 'hover:text-on-surface text-on-surface-variant/70'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -124,90 +185,98 @@ export const AvailableTests = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTests.map((test) => (
-            <Card 
-              key={test.id} 
-              variant="glass" 
-              className="overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col p-0 border-outline-variant/20"
-            >
-              {/* Color Bar indicator */}
-              <div className={`h-3 w-full ${
-                test.color === 'secondary' || test.difficulty === 'Medium' ? 'bg-secondary' : test.color === 'tertiary' || test.difficulty === 'Easy' ? 'bg-tertiary' : 'bg-primary'
-              }`} />
-              
-              <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <Badge variant={test.difficulty === 'Hard' ? 'error' : test.difficulty === 'Medium' ? 'tertiary' : 'secondary'}>
-                      {test.difficulty}
-                    </Badge>
-                    <span className="text-[10px] text-primary dark:text-primary-fixed font-bold uppercase tracking-wider">
-                      {test.subject}
-                    </span>
-                  </div>
-                  <h3 className="font-h4 text-lg font-bold text-on-surface leading-tight group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">
-                    {test.title}
-                  </h3>
-                  <p className="font-body text-xs text-on-surface-variant line-clamp-3 mt-3 leading-relaxed">
-                    {test.description}
-                  </p>
+          {filteredTests.map((test) => {
+            const startDateObj = test.startDate ? new Date(test.startDate) : null;
+            const endDateObj = test.endDate ? new Date(test.endDate) : null;
 
-                  {(() => {
-                    const startDateObj = test.startDate ? new Date(test.startDate) : null;
-                    const endDateObj = test.endDate ? new Date(test.endDate) : null;
+            const isOpen = (!startDateObj && !endDateObj) || ((!startDateObj || startDateObj <= now) && (!endDateObj || endDateObj >= now));
+            const isUpcoming = startDateObj && startDateObj > now;
+            const isClosed = endDateObj && endDateObj < now;
 
-                    if (!startDateObj && !endDateObj) {
+            return (
+              <Card 
+                key={test.id} 
+                variant="glass" 
+                className="overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col p-0 border-outline-variant/20"
+              >
+                {/* Color Bar indicator */}
+                <div className={`h-3 w-full ${
+                  test.color === 'secondary' || test.difficulty === 'Medium' ? 'bg-secondary' : test.color === 'tertiary' || test.difficulty === 'Easy' ? 'bg-tertiary' : 'bg-primary'
+                }`} />
+                
+                <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <Badge variant={test.difficulty === 'Hard' ? 'error' : test.difficulty === 'Medium' ? 'tertiary' : 'secondary'}>
+                        {test.difficulty}
+                      </Badge>
+                      <span className="text-[10px] text-primary dark:text-primary-fixed font-bold uppercase tracking-wider">
+                        {test.subject}
+                      </span>
+                    </div>
+                    <h3 className="font-h4 text-lg font-bold text-on-surface leading-tight group-hover:text-primary dark:group-hover:text-primary-fixed transition-colors">
+                      {test.title}
+                    </h3>
+                    <p className="font-body text-xs text-on-surface-variant line-clamp-3 mt-3 leading-relaxed">
+                      {test.description}
+                    </p>
+
+                    {(() => {
+                      if (!startDateObj && !endDateObj) {
+                        return (
+                          <div className="mt-3 text-[10px] text-secondary bg-secondary/5 p-2 rounded-lg border border-secondary/10 font-semibold text-center">
+                            Always Open
+                          </div>
+                        );
+                      }
+
                       return (
-                        <div className="mt-3 text-[10px] text-secondary bg-secondary/5 p-2 rounded-lg border border-secondary/10 font-semibold text-center">
-                          Always Open
+                        <div className="mt-3 text-[10px] text-on-surface-variant bg-surface-container-low p-2 rounded-lg border border-outline-variant/20 space-y-1 font-medium">
+                          {isOpen && startDateObj && (
+                            <div className="text-secondary font-bold text-center flex items-center justify-center gap-1.5 py-0.5 bg-secondary/10 rounded border border-secondary/20 uppercase tracking-wider">
+                              <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" /> Open Now
+                            </div>
+                          )}
+                          {isUpcoming && startDateObj && (
+                            <div>Opens: <strong className="text-on-surface font-mono">{startDateObj.toLocaleString()}</strong></div>
+                          )}
+                          {isClosed && endDateObj && (
+                            <div className="text-error font-bold text-center py-0.5 bg-error/10 rounded border border-error/20 uppercase tracking-wider">Closed</div>
+                          )}
+                          {endDateObj && !isClosed && (
+                            <div>Closes: <strong className="text-on-surface font-mono">{endDateObj.toLocaleString()}</strong></div>
+                          )}
                         </div>
                       );
+                    })()}
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs font-semibold text-on-surface-variant pt-2 border-t border-outline-variant/20">
+                    <span className="flex items-center gap-1.5"><BookOpen className="w-4 h-4 text-outline" /> {test.questionsCount} Qs</span>
+                    <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-outline" /> {test.duration} Min</span>
+                    <span className="flex items-center gap-1.5"><Award className="w-4 h-4 text-outline" /> {test.totalMarks} Marks</span>
+                  </div>
+
+                  <Button 
+                    onClick={() => {
+                      if (isClosed) {
+                        toast.error('This test has been closed.');
+                      } else {
+                        navigate(`/tests/${test.id}`);
+                      }
+                    }}
+                    variant={test.color === 'secondary' || test.difficulty === 'Medium' ? 'solid' : test.color === 'tertiary' || test.difficulty === 'Easy' ? 'solid' : 'gradient'}
+                    className={
+                      ((test.color === 'secondary' || test.difficulty === 'Medium') ? 'bg-secondary hover:opacity-90' : (test.color === 'tertiary' || test.difficulty === 'Easy') ? 'bg-tertiary hover:opacity-90' : '')
                     }
-
-                    const isOpen = (!startDateObj || startDateObj <= now) && (!endDateObj || endDateObj >= now);
-                    const isUpcoming = startDateObj && startDateObj > now;
-                    const isClosed = endDateObj && endDateObj < now;
-
-                    return (
-                      <div className="mt-3 text-[10px] text-on-surface-variant bg-surface-container-low p-2 rounded-lg border border-outline-variant/20 space-y-1 font-medium">
-                        {isOpen && (
-                          <div className="text-secondary font-bold text-center flex items-center justify-center gap-1.5 py-0.5 bg-secondary/10 rounded border border-secondary/20 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" /> Open Now
-                          </div>
-                        )}
-                        {isUpcoming && startDateObj && (
-                          <div>Opens: <strong className="text-on-surface font-mono">{startDateObj.toLocaleString()}</strong></div>
-                        )}
-                        {isClosed && endDateObj && (
-                          <div className="text-error font-bold text-center py-0.5 bg-error/10 rounded border border-error/20 uppercase tracking-wider">Closed</div>
-                        )}
-                        {endDateObj && !isClosed && (
-                          <div>Closes: <strong className="text-on-surface font-mono">{endDateObj.toLocaleString()}</strong></div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                    fullWidth
+                  >
+                    Configure & Start
+                  </Button>
                 </div>
-
-                <div className="flex justify-between items-center text-xs font-semibold text-on-surface-variant pt-2 border-t border-outline-variant/20">
-                  <span className="flex items-center gap-1.5"><BookOpen className="w-4 h-4 text-outline" /> {test.questionsCount} Qs</span>
-                  <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-outline" /> {test.duration} Min</span>
-                  <span className="flex items-center gap-1.5"><Award className="w-4 h-4 text-outline" /> {test.totalMarks} Marks</span>
-                </div>
-
-                <Button 
-                  onClick={() => navigate(`/tests/${test.id}`)}
-                  variant={test.color === 'secondary' || test.difficulty === 'Medium' ? 'solid' : test.color === 'tertiary' || test.difficulty === 'Easy' ? 'solid' : 'gradient'}
-                  className={
-                    (test.color === 'secondary' || test.difficulty === 'Medium') ? 'bg-secondary hover:opacity-90' : (test.color === 'tertiary' || test.difficulty === 'Easy') ? 'bg-tertiary hover:opacity-90' : ''
-                  }
-                  fullWidth
-                >
-                  Configure & Start
-                </Button>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 

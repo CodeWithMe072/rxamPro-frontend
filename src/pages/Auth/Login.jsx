@@ -17,26 +17,47 @@ export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true); // default: remember (persist across reloads)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(LoginSchema),
     defaultValues: { identifier: '', password: '' }
   });
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from || '/dashboard';
 
   const onSubmit = async (data) => {
     try {
-      const user = await login(data.identifier, data.password);
-      toast.success(`Welcome back, ${user.name}!`);
-      if (user.role === 'admin') {
-        navigate('/admin');
+      const loggedUser = await login(data.identifier, data.password, rememberMe);
+      toast.success(`Welcome back, ${loggedUser.name}!`);
+
+      // Determine where to send the user
+      const isAdminRole = ['admin', 'sub-admin', 'staff'].includes(loggedUser.role);
+      const fromPath    = typeof from === 'string' ? from : from?.pathname || '/';
+
+      if (isAdminRole) {
+        navigate('/admin', { replace: true });
+      } else if (fromPath && fromPath !== '/login' && fromPath !== '/') {
+        navigate(fromPath, { replace: true });
       } else {
-        navigate(from, { replace: true });
+        navigate('/dashboard', { replace: true });
       }
     } catch (error) {
-      toast.error(error.message || 'Login failed. Please check your credentials.');
+      const status  = error?.response?.status;
+      const message = error?.response?.data?.message || error.message || '';
+
+      if (status === 403 && message.toLowerCase().includes('banned')) {
+        toast.error('🚫 Your account has been suspended by management. Contact your administrator.', {
+          duration: 6000,
+          style: {
+            background: 'var(--color-error-container, #3b0000)',
+            color: 'var(--color-on-error-container, #ffb4ab)',
+            border: '1px solid var(--color-error, #cf6679)',
+          },
+        });
+      } else {
+        toast.error(message || 'Login failed. Please check your credentials.');
+      }
     }
   };
 
@@ -95,7 +116,7 @@ export const Login = () => {
                     rememberMe ? 'translate-x-4 bg-primary' : ''
                   }`} />
                 </div>
-                <span className="text-on-surface-variant font-medium">Remember me</span>
+                <span className="text-on-surface-variant font-medium">Keep me signed in</span>
               </label>
               
               <Link 

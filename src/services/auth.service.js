@@ -21,8 +21,51 @@ export const authService = {
     return response.data.data.user;
   },
 
+  // Alias used by AuthContext to fetch fresh user on every page load
+  async getMe() {
+    const response = await api.get('/auth/me');
+    return response.data.data.user;
+  },
+
   async updateProfile(data) {
-    const response = await api.put('/student/profile', data);
+    let payload = data;
+    let headers = {};
+
+    // Check if we need to send as multipart/form-data
+    const hasFile = data.avatarFile || (data.avatar && (data.avatar instanceof File || data.avatar instanceof Blob));
+    if (hasFile || data.name || data.email || data.phone !== undefined) {
+      const formData = new FormData();
+      if (data.name) formData.append('name', data.name);
+      if (data.email) formData.append('email', data.email);
+      if (data.phone !== undefined) formData.append('phone', data.phone);
+      
+      if (data.avatarFile) {
+        formData.append('avatar', data.avatarFile);
+      } else if (data.avatar && (data.avatar instanceof File || data.avatar instanceof Blob)) {
+        formData.append('avatar', data.avatar);
+      } else if (data.avatar) {
+        formData.append('avatar', data.avatar);
+      }
+      payload = formData;
+      headers = { 'Content-Type': 'multipart/form-data' };
+    }
+
+    const response = await api.put('/student/profile', payload, { headers });
+    return response.data; // Note: return full response body now so we can read requiresEmailVerification!
+  },
+
+  async verifyEmailChangeOtp(otp) {
+    const response = await api.post('/student/verify-email-otp', { otp });
+    return response.data.data.user;
+  },
+
+  async checkUsernameAvailability(username) {
+    const response = await api.get(`/student/check-username/${encodeURIComponent(username)}`);
+    return response.data; // { success, available, message }
+  },
+
+  async updateUsername(username) {
+    const response = await api.put('/student/username', { username });
     return response.data.data.user;
   },
 

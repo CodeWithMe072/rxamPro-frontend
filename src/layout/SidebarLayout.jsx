@@ -152,7 +152,7 @@ export const SidebarLayout = ({ children }) => {
   };
 
   const SidebarContent = ({ onItemClick }) => (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Brand & Header */}
       <div className="mb-8 px-2 flex justify-between items-center">
         <Link to="/" onClick={onItemClick} className="flex items-center gap-3">
@@ -165,20 +165,32 @@ export const SidebarLayout = ({ children }) => {
         </Link>
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden md:flex p-1.5 rounded-lg hover:bg-surface-variant/50 text-on-surface-variant transition-colors"
+          className="hidden md:flex absolute -right-7 top-5 w-6 h-6 bg-surface-container border border-outline-variant/30 rounded-full items-center justify-center text-on-surface-variant hover:text-primary shadow-md hover:scale-110 transition-all z-50 cursor-pointer"
         >
-          {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {sidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
       </div>
 
       {/* User profile capsule */}
-      <div className={`mb-8 p-3 bg-surface-container-low dark:bg-surface-dim rounded-2xl flex items-center gap-3 border border-outline-variant/20 transition-all ${sidebarCollapsed ? 'justify-center p-2' : ''}`}>
-        <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold overflow-hidden flex-shrink-0">
-          <img 
-            className="w-full h-full object-cover" 
-            alt={activeUser.name} 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCS_KwNtxSXnAS0xAJOx1lWKyJXSgkgZ4hZoM2yi812ob88aFcZ8Pq9yrzR1svJ-oVwvZrBsX3698bwN_qTS4GnXTXxm6w75NY-n6FH1qMAAvL2R3V2cpH-qR1si5QA9uM8Lza_ydhlt8F-EFg-vVc7B76SMq2V1BMztj5QyzIBLmRUX62XzFNYZ3jnZ_e-XNAkVsSpA9o4Bf9-BhtrNgW5XvhFU4ENH1sfODu5qG8j5ej0qk0ph-GgKuuQ7-eWuVKumQHDCkID7H0"
-          />
+      <div className={`mb-8 flex items-center transition-all ${
+        sidebarCollapsed 
+          ? 'justify-center bg-transparent border-transparent p-0' 
+          : 'p-3 bg-surface-container-low dark:bg-surface-dim rounded-2xl gap-3 border border-outline-variant/20'
+      }`}>
+        <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center font-bold overflow-hidden flex-shrink-0 border-2 border-primary/20 shadow-sm">
+          {activeUser.avatar && !activeUser.avatar.includes('lh3.googleusercontent.com/aida-public') ? (
+            /* Real uploaded avatar */
+            <img 
+              className="w-full h-full object-cover" 
+              alt={activeUser.name}
+              src={activeUser.avatar}
+            />
+          ) : (
+            /* Initial-letter empty state */
+            <span className="text-sm font-bold text-primary select-none">
+              {(activeUser.name || 'U').charAt(0).toUpperCase()}
+            </span>
+          )}
         </div>
         {!sidebarCollapsed && (
           <div className="min-w-0">
@@ -198,11 +210,15 @@ export const SidebarLayout = ({ children }) => {
               to={item.path}
               onClick={onItemClick}
               className={({ isActive }) => 
-                `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
+                `flex items-center transition-all ${
+                  sidebarCollapsed 
+                    ? 'w-12 h-12 justify-center rounded-full mx-auto' 
+                    : 'gap-3 px-4 py-3 rounded-xl font-bold'
+                } ${
                   isActive 
                     ? 'bg-primary-container text-on-primary-container shadow-md shadow-primary/10' 
                     : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
-                } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
+                }`
               }
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
@@ -218,11 +234,15 @@ export const SidebarLayout = ({ children }) => {
           to="/profile"
           onClick={onItemClick}
           className={({ isActive }) => 
-            `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
+            `flex items-center transition-all ${
+              sidebarCollapsed 
+                ? 'w-12 h-12 justify-center rounded-full mx-auto' 
+                : 'gap-3 px-4 py-3 rounded-xl font-bold'
+            } ${
               isActive 
                 ? 'bg-primary-container text-on-primary-container' 
                 : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
-            } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
+            }`
           }
         >
           <User className="w-5 h-5 flex-shrink-0" />
@@ -232,11 +252,15 @@ export const SidebarLayout = ({ children }) => {
           to="/settings"
           onClick={onItemClick}
           className={({ isActive }) => 
-            `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
+            `flex items-center transition-all ${
+              sidebarCollapsed 
+                ? 'w-12 h-12 justify-center rounded-full mx-auto' 
+                : 'gap-3 px-4 py-3 rounded-xl font-bold'
+            } ${
               isActive 
                 ? 'bg-primary-container text-on-primary-container' 
                 : 'text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'
-            } ${sidebarCollapsed ? 'justify-center px-0' : ''}`
+            }`
           }
         >
           <Settings className="w-5 h-5 flex-shrink-0" />
@@ -244,7 +268,11 @@ export const SidebarLayout = ({ children }) => {
         </NavLink>
         <button 
           onClick={logout}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-error hover:bg-error-container/20 transition-all ${sidebarCollapsed ? 'justify-center px-0' : ''}`}
+          className={`flex items-center transition-all text-error hover:bg-error-container/20 cursor-pointer ${
+            sidebarCollapsed 
+              ? 'w-12 h-12 justify-center rounded-full mx-auto' 
+              : 'w-full gap-3 px-4 py-3 rounded-xl font-bold'
+          }`}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!sidebarCollapsed && <span className="font-small text-sm">Logout</span>}
@@ -335,7 +363,7 @@ export const SidebarLayout = ({ children }) => {
                 </button>
 
                 {showNotificationsDropdown && (
-                  <div className="absolute right-0 mt-3 w-80 max-h-[400px] bg-surface-container border border-outline-variant/30 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col glass-card border-white/20">
+                  <div className="absolute right-0 mt-3 w-80 max-h-[400px] bg-surface-container-highest border border-outline-variant/30 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col">
                     <div className="px-4 py-3 bg-surface-container-high border-b border-outline-variant/20 flex items-center justify-between">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-on-surface">Notifications</h4>
                       {unreadCount > 0 && (

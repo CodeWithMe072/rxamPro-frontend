@@ -131,6 +131,11 @@ export const testService = {
     return response.data;
   },
 
+  async editUserDetails(id, details) {
+    const response = await api.put(`/admin/users/${id}/details`, details);
+    return response.data; // { success, message, data: { user } }
+  },
+
   async importUsers(file) {
     const formData = new FormData();
     formData.append('file', file);

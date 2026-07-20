@@ -6,10 +6,15 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  // Still bootstrapping session from localStorage/API — don't redirect yet
+  const hasStoredToken = !!(
+    localStorage.getItem('token') || sessionStorage.getItem('token')
+  );
+
+  if (isLoading || (hasStoredToken && !user)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
       </div>
     );
   }
@@ -19,7 +24,10 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to={['admin', 'sub-admin', 'staff'].includes(user?.role) ? '/admin' : '/dashboard'} replace />;
+    const dest = ['admin', 'sub-admin', 'staff'].includes(user?.role)
+      ? '/admin'
+      : '/dashboard';
+    return <Navigate to={dest} replace />;
   }
 
   return children;

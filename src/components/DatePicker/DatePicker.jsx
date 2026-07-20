@@ -14,6 +14,7 @@ export const DatePicker = ({
   size = 'md' // 'sm' | 'md'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState({});
   const dropdownRef = useRef(null);
 
   // Parse input value into local date parts (timezone-proof)
@@ -95,9 +96,9 @@ export const DatePicker = ({
   };
   const minDateObj = parseMinDate(minDate);
 
-  const hourOptions = Array.from({ length: 24 }).map((_, i) => ({
-    value: i,
-    label: String(i).padStart(2, '0')
+  const hourOptions = Array.from({ length: 12 }).map((_, i) => ({
+    value: i + 1,
+    label: String(i + 1).padStart(2, '0')
   }));
 
   const minuteOptions = Array.from({ length: 60 }).map((_, i) => ({
@@ -132,6 +133,46 @@ export const DatePicker = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Measure space below and to the right of dropdown to decide positioning
+  useEffect(() => {
+    const updatePosition = () => {
+      if (!dropdownRef.current) return;
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const margin = 12;
+      const calendarWidth = 320;
+      const calendarHeight = 340;
+
+      // Vertical space calculation (~340px needed for calendar)
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const shouldOpenUpward = spaceBelow < calendarHeight && rect.top > calendarHeight;
+
+      const vStyle = shouldOpenUpward
+        ? { bottom: '100%', marginBottom: '8px', top: 'auto' }
+        : { top: '100%', marginTop: '8px', bottom: 'auto' };
+
+      // Horizontal clamping calculation (320px needed for calendar width, shifted left by 100px by default)
+      const screenLeft = Math.max(margin, Math.min(rect.left - 100, window.innerWidth - calendarWidth - margin));
+      const relativeLeft = screenLeft - rect.left;
+
+      setPopoverStyle({
+        position: 'absolute',
+        left: `${relativeLeft}px`,
+        ...vStyle
+      });
+    };
+
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+      
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+        window.removeEventListener('scroll', updatePosition, true);
+      };
+    }
+  }, [isOpen]);
 
   // Calendar math helpers
   const getDaysInMonth = (year, month) => {
@@ -228,9 +269,11 @@ export const DatePicker = ({
     const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const formattedDate = `${monthsShort[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
     if (showTime) {
-      const hh = String(hours).padStart(2, '0');
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 === 0 ? 12 : hours % 12;
+      const hh = String(hours12).padStart(2, '0');
       const mm = String(minutes).padStart(2, '0');
-      return `${formattedDate}, ${hh}:${mm}`;
+      return `${formattedDate}, ${hh}:${mm} ${period}`;
     }
     return formattedDate;
   };
@@ -266,6 +309,18 @@ export const DatePicker = ({
     daysGrid.push({ day: i, currentMonth: false });
   }
 
+  const handleToggle = () => {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    if (nextOpen && !value) {
+      const today = new Date();
+      setViewMonth(today.getMonth());
+      setViewYear(today.getFullYear());
+      const formatted = formatOutput(today, today.getHours(), today.getMinutes());
+      onChange(formatted);
+    }
+  };
+
   const isSmall = size === 'sm';
 
   return (
@@ -274,7 +329,7 @@ export const DatePicker = ({
         {label && <span className="text-[10px] text-on-surface-variant/80 font-bold uppercase tracking-wider">{label}</span>}
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={handleToggle}
           className={clsx(
             "w-full px-3 border border-outline-variant/30 bg-surface-container hover:bg-primary/[0.06] hover:border-primary text-on-surface font-semibold flex items-center justify-between focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer text-left transition-all",
             isSmall ? 'h-9 rounded-lg text-[11px]' : 'h-12 rounded-xl text-xs'
@@ -288,7 +343,10 @@ export const DatePicker = ({
       </div>
 
       {isOpen && (
-        <div className="absolute left-0 sm:left-auto right-0 sm:right-auto z-50 mt-2 w-72 rounded-[16px] bg-surface-container-highest border border-outline-variant/30 p-4 shadow-[0_15px_40px_rgba(0,0,0,0.3)] backdrop-blur-md animate-fadeIn text-on-surface">
+        <div 
+          style={popoverStyle}
+          className="z-50 w-80 rounded-[16px] bg-surface-container-highest border border-outline-variant/30 p-4 shadow-[0_15px_40px_rgba(0,0,0,0.3)] backdrop-blur-md animate-fadeIn text-on-surface"
+        >
           {/* Header Month/Year Selector */}
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-bold text-on-surface">
@@ -311,6 +369,7 @@ export const DatePicker = ({
               </button>
             </div>
           </div>
+
 
           {/* Weekdays */}
           <div className="grid grid-cols-7 gap-1 text-center mb-1">
@@ -356,33 +415,65 @@ export const DatePicker = ({
             })}
           </div>
 
-          {/* Time Picker Controls (Sleek scrollable style) */}
+          {/* Time Picker Controls (Sleek scrollable style - Bottom position) */}
           {showTime && (
-            <div className="flex items-center justify-between gap-4 mt-4 pt-3 border-t border-outline-variant/20 bg-surface-container-low/30 p-2 rounded-xl">
+            <div className="flex flex-col items-start gap-2.5 mt-4 pt-3 border-t border-outline-variant/20 bg-surface-container-low/30 p-3 rounded-xl w-full">
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                 <Clock className="w-3.5 h-3.5 text-primary" /> Time
               </span>
-              <div className="flex items-center gap-1.5">
-                <div className="w-20">
-                  <Dropdown
-                    options={hourOptions}
-                    value={tempHours}
-                    onChange={(val) => handleTimeChange('hours', val)}
-                    size="sm"
-                  />
-                </div>
-                <span className="text-xs font-bold text-on-surface-variant">:</span>
-                <div className="w-20">
-                  <Dropdown
-                    options={minuteOptions}
-                    value={tempMinutes}
-                    onChange={(val) => handleTimeChange('minutes', val)}
-                    size="sm"
-                  />
-                </div>
+              <div className="flex items-center gap-2 w-full justify-start">
+                {(() => {
+                  const displayHour = tempHours % 12 === 0 ? 12 : tempHours % 12;
+                  const currentPeriod = tempHours >= 12 ? 'PM' : 'AM';
+
+                  return (
+                    <>
+                      <div className="w-20">
+                        <Dropdown
+                          options={hourOptions}
+                          value={displayHour}
+                          onChange={(val) => {
+                            const newHour12 = Number(val);
+                            const newHours24 = (newHour12 % 12) + (currentPeriod === 'PM' ? 12 : 0);
+                            handleTimeChange('hours', newHours24);
+                          }}
+                          size="sm"
+                          showCheck={false}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-on-surface-variant">:</span>
+                      <div className="w-20">
+                        <Dropdown
+                          options={minuteOptions}
+                          value={tempMinutes}
+                          onChange={(val) => handleTimeChange('minutes', val)}
+                          size="sm"
+                          showCheck={false}
+                        />
+                      </div>
+                      <div className="w-[84px]">
+                        <Dropdown
+                          options={[
+                            { value: 'AM', label: 'AM' },
+                            { value: 'PM', label: 'PM' }
+                          ]}
+                          value={currentPeriod}
+                          onChange={(val) => {
+                            const currentHour12 = tempHours % 12 === 0 ? 12 : tempHours % 12;
+                            const newHours24 = (currentHour12 % 12) + (val === 'PM' ? 12 : 0);
+                            handleTimeChange('hours', newHours24);
+                          }}
+                          size="sm"
+                          showCheck={false}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
+
 
           {/* Footer buttons */}
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/20 text-[10px] font-bold uppercase tracking-wider">

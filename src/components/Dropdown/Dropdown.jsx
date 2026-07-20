@@ -9,7 +9,8 @@ export const Dropdown = ({
   onChange,
   className = '',
   placeholder = 'Select option',
-  size = 'md' // 'sm' | 'md'
+  size = 'md', // 'sm' | 'md'
+  showCheck = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,7 +125,7 @@ export const Dropdown = ({
                 )}
               >
                 <span className="truncate">{option.label}</span>
-                {isSelected && (
+                {isSelected && showCheck && (
                   <div className="w-4 h-4 rounded-full bg-on-primary/15 flex items-center justify-center flex-shrink-0 ml-2">
                     <Check className="w-2.5 h-2.5 text-on-primary" />
                   </div>

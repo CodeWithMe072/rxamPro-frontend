@@ -1,5 +1,22 @@
 import axios from 'axios';
 
+const getStoredItem = (key) => {
+  return localStorage.getItem(key) || sessionStorage.getItem(key);
+};
+
+const setStoredItem = (key, value) => {
+  if (localStorage.getItem(key)) {
+    localStorage.setItem(key, value);
+  } else if (sessionStorage.getItem(key)) {
+    sessionStorage.setItem(key, value);
+  }
+};
+
+const removeStoredItem = (key) => {
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+};
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/',
   headers: {
@@ -10,7 +27,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getStoredItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,7 +54,7 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = getStoredItem('refreshToken');
       if (refreshToken) {
         try {
           console.log('Refreshing session...');
@@ -46,18 +63,28 @@ api.interceptors.response.use(
           });
           const { accessToken: newToken, refreshToken: newRefreshToken } = response.data.data;
 
-          localStorage.setItem('token', newToken);
-          localStorage.setItem('refreshToken', newRefreshToken);
+          setStoredItem('token', newToken);
+          setStoredItem('refreshToken', newRefreshToken);
 
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return api(originalRequest);
         } catch (refreshError) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
+          removeStoredItem('token');
+          removeStoredItem('refreshToken');
+          removeStoredItem('user');
           window.location.href = '/login';
           return Promise.reject(refreshError);
         }
+      }
+    }
+
+    // Detect banned account — fire a global event so the UI can react
+    if (error.response?.status === 403) {
+      const msg = error.response?.data?.message || '';
+      const isBanMsg = msg.toLowerCase().includes('banned');
+      if (isBanMsg) {
+        window.dispatchEvent(new CustomEvent('account-banned', { detail: { message: msg } }));
+        return Promise.reject(error); // stop normal error handling
       }
     }
 

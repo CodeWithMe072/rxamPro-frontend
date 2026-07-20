@@ -8,8 +8,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Dropdown } from '../../components/Dropdown';
 import { DatePicker } from '../../components/DatePicker';
 import { Pagination } from '../../components/Pagination';
-import { Users, Search, ShieldAlert, UserPlus, UserCheck, ShieldX, Trash2, School, Filter, Mail, RefreshCw, CheckCircle2, Activity } from 'lucide-react';
+import { Users, Search, ShieldAlert, UserPlus, UserCheck, ShieldX, Trash2, School, Filter, Mail, RefreshCw, CheckCircle2, Activity, Pencil, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Modal } from '../../components/Modal';
 
 
 export const UserManagement = () => {
@@ -51,6 +52,12 @@ export const UserManagement = () => {
   const [loadingAttempts, setLoadingAttempts] = useState(false);
   const [showSnapshotsModal, setShowSnapshotsModal] = useState(false);
   const [selectedAttemptForSnapshots, setSelectedAttemptForSnapshots] = useState(null);
+
+  // Edit user details modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTarget, setEditTarget] = useState(null); // the user object being edited
+  const [editForm, setEditForm] = useState({ name: '', username: '', email: '', phone: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Users pagination state
   const [usersPagination, setUsersPagination] = useState(null);
@@ -178,6 +185,32 @@ export const UserManagement = () => {
     }
   };
 
+  const openEditModal = (u) => {
+    setEditTarget(u);
+    setEditForm({ name: u.name, username: u.username || '', email: u.email, phone: u.phone || '' });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    if (!editForm.name.trim()) { toast.error('Name is required.'); return; }
+    if (!editForm.email.trim()) { toast.error('Email is required.'); return; }
+    setIsSavingEdit(true);
+    try {
+      const result = await testService.editUserDetails(editTarget.id, editForm);
+      toast.success(result.message || 'User details updated successfully.');
+      // Update user in local state without full refetch
+      setUsers(prev => prev.map(u => u.id === editTarget.id ? { ...u, ...result.data.user } : u));
+      setShowEditModal(false);
+      setEditTarget(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update user details.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const closeAddModal = useCallback(() => {
     setShowAddModal(false);
     setModalStep('form');
@@ -294,6 +327,27 @@ export const UserManagement = () => {
     if (activeUser?.role === 'admin') return true;
     if (activeUser?.role === 'sub-admin') {
       return targetRole === 'student' || targetRole === 'staff';
+    }
+    if (activeUser?.role === 'staff') {
+      return targetRole === 'student';
+    }
+    return false;
+  };
+
+  /**
+   * canEditUser — controls the Pencil (edit details) button.
+   * - admin     → can edit staff, sub-admin, student (anyone below)
+   * - sub-admin → can edit staff, student
+   * - staff     → can edit student only
+   * Nobody can edit their own account here (they use Profile page).
+   */
+  const canEditUser = (targetRole, targetId) => {
+    if (targetId === activeUser?.id) return false;
+    if (activeUser?.role === 'admin') {
+      return ['student', 'staff', 'sub-admin'].includes(targetRole);
+    }
+    if (activeUser?.role === 'sub-admin') {
+      return ['student', 'staff'].includes(targetRole);
     }
     if (activeUser?.role === 'staff') {
       return targetRole === 'student';
@@ -621,6 +675,18 @@ export const UserManagement = () => {
                         </span>
                       </td>
                       <td className="py-4 px-2 flex items-center justify-end gap-1.5 h-16">
+                        {/* Edit button — sub-admin & admin can edit students */}
+                        {canEditUser(u.role, u.id) && (
+                          <Button
+                            onClick={() => openEditModal(u)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-on-surface-variant hover:bg-primary/10 hover:text-primary px-2 h-9"
+                            title="Edit student details"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
                         {canModerateUser(u.role, u.id) && (
                           <>
                             <Button 
@@ -703,6 +769,18 @@ export const UserManagement = () => {
                         </span>
                       </td>
                       <td className="py-4 px-2 flex items-center justify-end gap-1.5 h-16">
+                        {/* Edit — admin & sub-admin can edit staff */}
+                        {canEditUser(u.role, u.id) && (
+                          <Button
+                            onClick={() => openEditModal(u)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-on-surface-variant hover:bg-primary/10 hover:text-primary px-2 h-9"
+                            title="Edit staff details"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
                         {canModerateUser(u.role, u.id) && (
                           <>
                             <Button 
@@ -774,21 +852,33 @@ export const UserManagement = () => {
                         </span>
                       </td>
                       <td className="py-4 px-2 flex items-center justify-end gap-1.5 h-16">
+                        {/* Edit button for sub-admin — only admin can edit */}
+                        {canEditUser(u.role, u.id) && (
+                          <Button
+                            onClick={() => openEditModal(u)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-on-surface-variant hover:bg-primary/10 hover:text-primary px-2 h-9"
+                            title="Edit sub-admin details"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
                         {canModerateUser(u.role, u.id) && (
                           <>
-                            <Button 
+                            <Button
                               onClick={() => handleBanToggle(u.id)}
-                              variant="ghost" 
-                              size="sm" 
+                              variant="ghost"
+                              size="sm"
                               className={u.isBanned ? "text-secondary hover:bg-secondary/10 px-2 h-9" : "text-error hover:bg-error-container/20 px-2 h-9"}
                               title={u.isBanned ? "Unban user" : "Ban user"}
                             >
                               {u.isBanned ? <UserCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
                             </Button>
-                            <Button 
+                            <Button
                               onClick={() => handleDeleteUser(u.id)}
-                              variant="ghost" 
-                              size="sm" 
+                              variant="ghost"
+                              size="sm"
                               className="text-error hover:bg-error-container/20 px-2 h-9"
                               title="Delete user account"
                             >
@@ -1157,8 +1247,96 @@ export const UserManagement = () => {
               </Button>
             </div>
           </Card>
-        </div>
+         </div>
       )}
+
+      {/* ── Edit User Details Modal ─────────────────────────────────────── */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => { setShowEditModal(false); setEditTarget(null); }}
+        title={
+          <span className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-primary" />
+            Edit User Details
+            {editTarget && <span className="text-on-surface-variant font-normal text-sm">— {editTarget.name}</span>}
+          </span>
+        }
+        size="md"
+        showCloseButton={true}
+        closeOnOverlayClick={false}
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4 p-1">
+          {/* Name */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Full Name <span className="text-error">*</span></label>
+            <input
+              type="text"
+              value={editForm.name}
+              onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+              required
+              className="w-full px-4 py-2.5 rounded-xl bg-surface-container border-2 border-outline-variant/40 focus:border-primary text-sm text-on-surface outline-none transition-all"
+              placeholder="Full name"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Username */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Username</label>
+              <input
+                type="text"
+                value={editForm.username}
+                onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))}
+                maxLength={30}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface-container border-2 border-outline-variant/40 focus:border-primary text-sm text-on-surface outline-none transition-all"
+                placeholder="username"
+              />
+              <p className="text-[10px] text-on-surface-variant/60">Letters, numbers, _ and - only</p>
+            </div>
+
+            {/* Phone */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Phone Number</label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl bg-surface-container border-2 border-outline-variant/40 focus:border-primary text-sm text-on-surface outline-none transition-all"
+                placeholder="+91 XXXXX XXXXX"
+              />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Email Address <span className="text-error">*</span></label>
+            <input
+              type="email"
+              value={editForm.email}
+              onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+              required
+              className="w-full px-4 py-2.5 rounded-xl bg-surface-container border-2 border-outline-variant/40 focus:border-primary text-sm text-on-surface outline-none transition-all"
+              placeholder="user@example.com"
+            />
+            <p className="text-[10px] text-warning font-semibold">⚠ Changing email updates login credentials immediately — no OTP required when done by admin.</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between gap-3 pt-4 border-t border-outline-variant/20">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setShowEditModal(false); setEditTarget(null); }}
+              className="text-on-surface-variant"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="gradient" isLoading={isSavingEdit} disabled={isSavingEdit}>
+              {isSavingEdit ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

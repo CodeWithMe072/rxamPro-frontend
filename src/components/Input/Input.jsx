@@ -7,6 +7,7 @@ export const Input = React.forwardRef(({
   type = 'text',
   placeholder = ' ',
   className = '',
+  inputClassName = '',
   id,
   icon: Icon,
   rightElement,
@@ -33,7 +34,8 @@ export const Input = React.forwardRef(({
             "input-field w-full h-12 bg-surface-container-low dark:bg-surface-dim border rounded-xl font-body text-base text-on-surface placeholder:text-outline transition-all duration-200 focus:border-primary focus:bg-surface-container-lowest outline-none focus:outline-none",
             Icon ? "pl-11" : "px-4",
             rightElement ? "pr-11" : "pr-4",
-            error ? "border-error focus:border-error focus:ring-error" : "border-outline-variant/50 focus:border-primary"
+            error ? "border-error focus:border-error focus:ring-error" : "border-outline-variant/50 focus:border-primary",
+            inputClassName
           )}
           {...props}
         />

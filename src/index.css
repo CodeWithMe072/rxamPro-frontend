@@ -371,3 +371,12 @@ select:-webkit-autofill:focus {
   overflow-y: auto !important;
   height: 100vh !important;
 }
+
+/* Utility to hide scrollbars globally while preserving scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

@@ -7,7 +7,8 @@ import { Badge } from '../../components/Badge';
 import { Loader } from '../../components/Loader';
 import { 
   ChevronLeft, BookOpen, Clock, Award, 
-  ShieldAlert, Sparkles, CheckCircle2, Trophy 
+  ShieldAlert, Sparkles, CheckCircle2, Trophy,
+  Camera 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTheme } from '../../context/ThemeContext';
@@ -20,6 +21,8 @@ export const TestDetails = () => {
   const [test, setTest] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [isCheckingCamera, setIsCheckingCamera] = useState(false);
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -43,6 +46,47 @@ export const TestDetails = () => {
     };
     fetchDetails();
   }, [id, navigate]);
+
+  const checkCameraPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err) {
+      console.warn('Camera validation failed:', err);
+      return false;
+    }
+  };
+
+  const handleStartExam = async () => {
+    setShowConfirmModal(false);
+    
+    if (test?.webcamProctoring) {
+      setIsCheckingCamera(true);
+      const hasCamera = await checkCameraPermission();
+      setIsCheckingCamera(false);
+      
+      if (!hasCamera) {
+        setShowCameraModal(true);
+        return;
+      }
+    }
+    
+    navigate(`/exam/${test.id}`);
+  };
+
+  const handleRetryCamera = async () => {
+    setIsCheckingCamera(true);
+    const hasCamera = await checkCameraPermission();
+    setIsCheckingCamera(false);
+    
+    if (hasCamera) {
+      setShowCameraModal(false);
+      navigate(`/exam/${test.id}`);
+    } else {
+      toast.error('Camera still not detected or permission denied. Please follow the instructions and try again.');
+    }
+  };
 
   if (isLoading) {
     return <Loader size="lg" className="min-h-[60vh]" />;
@@ -375,14 +419,83 @@ export const TestDetails = () => {
             </Button>
             <Button 
               variant="gradient" 
-              onClick={() => {
-                setShowConfirmModal(false);
-                navigate(`/exam/${test.id}`);
-              }}
+              onClick={handleStartExam}
               fullWidth
               className="h-auto min-h-[44px] py-2.5 text-xs sm:text-sm text-center"
             >
               Start Test
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Camera Permission Required Modal */}
+      <Modal
+        isOpen={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        title="Camera Access Required"
+        size="md"
+        showCloseButton={true}
+        closeOnOverlayClick={false}
+      >
+        <div className="space-y-6">
+          <div className="bg-error/10 border-l-4 border-error p-4 rounded-r-xl flex items-start gap-3">
+            <Camera className="w-5 h-5 text-error flex-shrink-0 mt-0.5 animate-pulse" />
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-error uppercase tracking-wide">
+                Camera Blocked or Unavailable
+              </h4>
+              <p className="text-xs text-on-surface-variant mt-2 leading-relaxed font-medium">
+                This exam has **webcam proctoring** enabled and takes random security snapshots. You cannot start the exam without an active camera.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3.5 pt-2">
+            <h5 className="text-xs font-bold text-on-surface uppercase tracking-wider">
+              How to enable camera permission:
+            </h5>
+            <ol className="list-decimal pl-5 text-xs text-on-surface-variant space-y-2.5 font-medium leading-relaxed">
+              <li>
+                Click the <strong>Lock / Settings icon</strong> 🔒 next to the website address in your browser's URL search bar.
+              </li>
+              <li>
+                Locate the <strong>Camera</strong> permission toggle/dropdown and change it to <strong>Allow</strong>.
+              </li>
+              <li>
+                If you have multiple camera hardware options, make sure one is plugged in and active.
+              </li>
+              <li>
+                Click the <strong>Retry / Okay</strong> button below to verify and start your exam.
+              </li>
+            </ol>
+          </div>
+
+          <div className="flex gap-4 pt-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCameraModal(false)}
+              fullWidth
+              disabled={isCheckingCamera}
+              className="h-auto min-h-[44px] py-2.5 text-xs sm:text-sm"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="gradient" 
+              onClick={handleRetryCamera}
+              fullWidth
+              disabled={isCheckingCamera}
+              className="h-auto min-h-[44px] py-2.5 text-xs sm:text-sm text-center flex items-center justify-center gap-1.5"
+            >
+              {isCheckingCamera ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  Checking...
+                </>
+              ) : (
+                'Okay / Retry'
+              )}
             </Button>
           </div>
         </div>

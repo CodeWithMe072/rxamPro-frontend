@@ -36,9 +36,35 @@ const TestSchema = z.object({
   endDate: z.string().optional().nullable().or(z.date().optional())
 });
 
+const toISTInputString = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  
+  const year = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric' });
+  const month = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', month: '2-digit' });
+  const day = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', day: '2-digit' });
+  
+  const hour = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false });
+  const minute = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', minute: '2-digit' });
+  
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
+const parseISTDate = (dateStr) => {
+  if (!dateStr) return null;
+  if (dateStr.includes('Z') || dateStr.match(/[+-]\d{2}:\d{2}$/)) {
+    return new Date(dateStr);
+  }
+  return new Date(`${dateStr}:00+05:30`);
+};
+
 const getTodayString = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const year = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric' });
+  const month = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', month: '2-digit' });
+  const day = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata', day: '2-digit' });
+  return `${year}-${month}-${day}`;
 };
 
 export const ManageTests = () => {
@@ -157,8 +183,8 @@ export const ManageTests = () => {
       useLatePenalty: test.useLatePenalty !== false,
       useAttemptPenalty: test.useAttemptPenalty !== false,
       maxAttempts: test.maxAttempts || 0,
-      startDate: test.startDate ? new Date(test.startDate).toISOString().slice(0, 16) : '',
-      endDate: test.endDate ? new Date(test.endDate).toISOString().slice(0, 16) : ''
+      startDate: toISTInputString(test.startDate),
+      endDate: toISTInputString(test.endDate)
     });
     setIsModalOpen(true);
   };
@@ -187,12 +213,18 @@ export const ManageTests = () => {
   };
 
   const onSubmit = async (data) => {
+    const payload = {
+      ...data,
+      startDate: data.startDate ? parseISTDate(data.startDate) : null,
+      endDate: data.endDate ? parseISTDate(data.endDate) : null
+    };
+
     try {
       if (editingTest) {
-        await testService.updateTest(editingTest.id, data);
+        await testService.updateTest(editingTest.id, payload);
         toast.success('Test updated successfully.');
       } else {
-        await testService.createTest(data);
+        await testService.createTest(payload);
         toast.success('New test created successfully.');
       }
       setIsModalOpen(false);
@@ -247,8 +279,8 @@ export const ManageTests = () => {
   const openEditSchedule = (sched) => {
     setEditingSchedule(sched);
     setScheduleBatch(sched.batch?._id || sched.batch || '');
-    setScheduleStartDate(sched.startDate ? new Date(sched.startDate).toISOString().slice(0, 16) : '');
-    setScheduleEndDate(sched.endDate ? new Date(sched.endDate).toISOString().slice(0, 16) : '');
+    setScheduleStartDate(toISTInputString(sched.startDate));
+    setScheduleEndDate(toISTInputString(sched.endDate));
     setScheduleMaxAttempts(sched.maxAttempts || 0);
     setScheduleUseLatePenalty(sched.useLatePenalty !== false);
     setScheduleUseAttemptPenalty(sched.useAttemptPenalty !== false);
@@ -264,8 +296,8 @@ export const ManageTests = () => {
     
     const payload = {
       batch: scheduleBatch,
-      startDate: scheduleStartDate || null,
-      endDate: scheduleEndDate || null,
+      startDate: scheduleStartDate ? parseISTDate(scheduleStartDate) : null,
+      endDate: scheduleEndDate ? parseISTDate(scheduleEndDate) : null,
       maxAttempts: Number(scheduleMaxAttempts) || 0,
       useLatePenalty: scheduleUseLatePenalty,
       useAttemptPenalty: scheduleUseAttemptPenalty,
@@ -362,8 +394,9 @@ export const ManageTests = () => {
 
     const loadId = toast.loading('Analyzing test language options...');
     try {
-      const qs = await testService.getQuestions(testId);
-      const isBilingual = qs.some(q => 
+      const response = await testService.getQuestions(testId, { limit: 1000 });
+      const questions = response.data || [];
+      const isBilingual = questions.some(q => 
         q.question.includes('//') || 
         q.question.includes('||') || 
         q.options.some(o => o.includes('//') || o.includes('||'))
@@ -372,7 +405,7 @@ export const ManageTests = () => {
         setPdfAvailableLangs(['hindi', 'english']);
       } else {
         // Detect if questions contain Hindi characters
-        const hasHindi = qs.some(q => /[\u0900-\u097F]/.test(q.question));
+        const hasHindi = questions.some(q => /[\u0900-\u097F]/.test(q.question));
         setPdfAvailableLangs(hasHindi ? ['hindi'] : ['english']);
         setPdfLanguagesMode(hasHindi ? 'hindi' : 'english');
       }

@@ -65,7 +65,7 @@ export const Modal = ({
               )}
             </div>
 
-            <div className="overflow-y-auto flex-grow pr-1">
+            <div className="overflow-y-auto flex-grow pr-1 no-scrollbar">
               {children}
             </div>
           </motion.div>
